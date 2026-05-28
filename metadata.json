@@ -1,0 +1,6 @@
+{
+  "name": "Anime Bushidô",
+  "description": "Portão oficial do Anime Bushidô! Catálogo, ranking em ordem alfabética, códigos de características e controle de administrador completo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

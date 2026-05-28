@@ -1,0 +1,53 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Poppins", "Inter", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Custom Editorial Theme Colors */
+  --color-anime-purple: #a855f7;
+  --color-anime-dark: #050505;
+  --color-anime-gray-card: #080808;
+  --color-anime-border: #1f1f1f;
+}
+
+/* Animations for modern Editorial theme aesthetics */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+    color: #a855f7;
+  }
+}
+
+.anime-glow {
+  animation: pulseGlow 3s infinite;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #050505;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1f1f1f;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f3f;
+}
+
+body {
+  background-color: #050505;
+  color: #f4f4f5;
+  font-family: var(--font-sans);
+}
+
