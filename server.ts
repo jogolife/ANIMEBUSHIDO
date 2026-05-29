@@ -292,6 +292,7 @@ interface DatabaseSchema {
   userWatchlist: { [userId: string]: string[] }; // Record of anime IDs in watchlist
   codes?: Code[];
   ratings?: Rating[];
+  userCodes?: { [userId: string]: { [code: string]: string } }; // Personal code meaning overrides: userId -> code -> custom meaning
 }
 
 // Database Helper
@@ -301,12 +302,15 @@ const loadDb = (): DatabaseSchema => {
       const data = fs.readFileSync(DB_FILE, "utf-8");
       const parsed = JSON.parse(data) as DatabaseSchema;
       
-      // Ensure codes and ratings tables exist
+      // Ensure codes, ratings, and userCodes tables exist
       if (!parsed.codes) {
         parsed.codes = DEFAULT_CODES;
       }
       if (!parsed.ratings) {
         parsed.ratings = DEFAULT_RATINGS;
+      }
+      if (!parsed.userCodes) {
+        parsed.userCodes = {};
       }
       return parsed;
     }
@@ -323,7 +327,8 @@ const loadDb = (): DatabaseSchema => {
     userFavorites: {},
     userWatchlist: {},
     codes: DEFAULT_CODES,
-    ratings: DEFAULT_RATINGS
+    ratings: DEFAULT_RATINGS,
+    userCodes: {}
   };
   saveDb(defaultDb);
   return defaultDb;
@@ -337,61 +342,83 @@ const saveDb = (data: DatabaseSchema) => {
   }
 };
 
-// Helper to compute live ratings for each anime
+// Helper to compute live ratings and statistics for each anime
 function computeAnimeDynamicData(anime: Anime, dbData: DatabaseSchema) {
   const animeId = anime.id;
   const ratings = (dbData.ratings || []).filter(r => r.animeId === animeId);
   
-  // Default values
-  let communityRating = "Bom";
-  if (anime.rating >= 9.2) communityRating = "Absolute Cinema";
-  else if (anime.rating >= 8.5) communityRating = "Ótimo";
-  else if (anime.rating >= 7.0) communityRating = "Bom";
-  else if (anime.rating >= 5.0) communityRating = "OK";
-  else if (anime.rating >= 3.0) communityRating = "Ruim";
-  else communityRating = "Péssimo";
+  // Set up baseline stats for seeded animes matching user requirements
+  const ratingDistribution: { [key: string]: number } = {
+    "Absolute Cinema": 0,
+    "Ótimo": 0,
+    "Bom": 0,
+    "OK": 0,
+    "Ruim": 0,
+    "Péssimo": 0
+  };
 
-  const ratingCounts: { [key: string]: number } = {};
-  ratings.forEach(r => {
-    ratingCounts[r.ratingValue] = (ratingCounts[r.ratingValue] || 0) + 1;
-  });
-
-  let maxCount = 0;
-  Object.entries(ratingCounts).forEach(([k, v]) => {
-    if (v > maxCount) {
-      maxCount = v;
-      communityRating = k;
-    }
-  });
-
-  // Top codes mapping and counting
   const codeCounts: { [key: string]: number } = {};
+
+  // Baseline seeds aligned with prompt specifications
+  if (animeId === "1") { // Solo Leveling
+    ratingDistribution["Absolute Cinema"] = 520;
+    ratingDistribution["Ótimo"] = 301;
+    ratingDistribution["Bom"] = 40;
+    codeCounts["PO"] = 480;
+    codeCounts["AL"] = 390;
+    codeCounts["LT"] = 355;
+  } else if (animeId === "4") { // Jujutsu Kaisen
+    ratingDistribution["Absolute Cinema"] = 180;
+    ratingDistribution["Ótimo"] = 245;
+    ratingDistribution["Bom"] = 30;
+    codeCounts["PO"] = 125;
+    codeCounts["LT"] = 89;
+    codeCounts["AL"] = 210;
+  } else if (animeId === "3") { // Demon Slayer
+    ratingDistribution["Ótimo"] = 170;
+    ratingDistribution["Bom"] = 120;
+    ratingDistribution["Absolute Cinema"] = 90;
+    codeCounts["LT"] = 145;
+    codeCounts["AL"] = 189;
+  } else {
+    // Other simple seeds
+    ratingDistribution["Ótimo"] = 15;
+    ratingDistribution["Bom"] = 8;
+  }
+
+  // Aggregate user ratings
   ratings.forEach(r => {
+    ratingDistribution[r.ratingValue] = (ratingDistribution[r.ratingValue] || 0) + 1;
     (r.codes || []).forEach(c => {
       codeCounts[c] = (codeCounts[c] || 0) + 1;
     });
   });
 
-  let sortedCodes: string[] = [];
-  if (Object.keys(codeCounts).length > 0) {
-    sortedCodes = Object.entries(codeCounts)
-      .sort((a, b) => b[1] - a[1])
-      .map(entry => entry[0])
-      .slice(0, 4);
-  } else {
-    // static fallbacks for seed data
-    if (animeId === "1") sortedCodes = ["PO", "LT", "AL"];
-    else if (animeId === "2") sortedCodes = ["AL", "DG", "FE"];
-    else if (animeId === "3") sortedCodes = ["LT", "AL"];
-    else if (animeId === "4") sortedCodes = ["PO", "LT", "AL", "VL"];
-    else if (animeId === "5") sortedCodes = ["LT", "VL", "MT"];
-    else sortedCodes = ["AL"];
-  }
+  // Calculate most represented rating as communityRating
+  let communityRating = "Bom";
+  let maxRatingCount = -1;
+  Object.entries(ratingDistribution).forEach(([k, v]) => {
+    if (v > maxRatingCount) {
+      maxRatingCount = v;
+      communityRating = k;
+    }
+  });
+
+  // Sort and filter codes according to actual vote weights
+  const sortedCodes = Object.entries(codeCounts)
+    .filter(([_, count]) => count > 0)
+    .sort((a, b) => b[1] - a[1])
+    .map(entry => entry[0]);
+
+  // Fallbacks if list is empty
+  const finalTopCodes = sortedCodes.length > 0 ? sortedCodes : (animeId === "1" ? ["PO", "LT", "AL"] : ["AL"]);
 
   return {
     ...anime,
     communityRating,
-    topCodes: sortedCodes
+    topCodes: finalTopCodes,
+    ratingStats: ratingDistribution,
+    codeStats: codeCounts
   };
 }
 
@@ -877,6 +904,38 @@ app.post("/api/user/:userId/watchlist", (req, res) => {
 
   saveDb(dbData);
   res.json({ watchlist: dbData.userWatchlist[userId], inWatchlist: inWatch });
+});
+
+// Personal User Codes Meanings
+app.get("/api/user-codes/:userId", (req, res) => {
+  const { userId } = req.params;
+  const dbData = loadDb();
+  if (!dbData.userCodes) dbData.userCodes = {};
+  const personal = dbData.userCodes[userId] || {};
+  res.json(personal);
+});
+
+app.post("/api/user-codes/:userId", (req, res) => {
+  const { userId } = req.params;
+  const { code, personal_meaning } = req.body;
+
+  if (!code || typeof code !== "string") {
+    return res.status(400).json({ error: "Código inválido" });
+  }
+
+  const cleanCode = code.toUpperCase().trim().substring(0, 4);
+  const dbData = loadDb();
+  if (!dbData.userCodes) dbData.userCodes = {};
+  if (!dbData.userCodes[userId]) dbData.userCodes[userId] = {};
+
+  if (!personal_meaning || personal_meaning.trim() === "") {
+    delete dbData.userCodes[userId][cleanCode];
+  } else {
+    dbData.userCodes[userId][cleanCode] = personal_meaning.trim();
+  }
+
+  saveDb(dbData);
+  res.json(dbData.userCodes[userId]);
 });
 
 // Admin state checks and system stats

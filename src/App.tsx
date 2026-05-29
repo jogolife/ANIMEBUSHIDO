@@ -24,6 +24,7 @@ import NewsSection from "./components/NewsSection";
 import WatchlistSection from "./components/WatchlistSection";
 import AnimeDetailModal from "./components/AnimeDetailModal";
 import AdminPanel from "./components/AdminPanel";
+import AlphabeticalListCodes from "./components/AlphabeticalListCodes";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("catalog");
@@ -731,6 +732,17 @@ export default function App() {
             </div>
 
           </div>
+        )}
+
+        {/* GUIDED ALPHABETICAL & CODES REFERENCE TAB */}
+        {activeTab === "az-codes" && (
+          <AlphabeticalListCodes 
+            animes={animes}
+            availableCodes={availableCodes}
+            onRateAnime={handleRateAnime}
+            onSelectAnime={setSelectedAnime}
+            currentUser={currentUser}
+          />
         )}
 
         {/* 2. RANKING TAB */}

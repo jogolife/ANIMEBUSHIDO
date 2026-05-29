@@ -13,7 +13,8 @@ import {
   Chrome,
   Mail,
   Lock,
-  ArrowRight
+  ArrowRight,
+  Hash
 } from "lucide-react";
 import { PushNotification } from "../types";
 
@@ -171,6 +172,18 @@ export default function Navbar({
             }`}
           >
             Catálogo
+          </button>
+
+          <button
+            onClick={() => setActiveTab("az-codes")}
+            className={`font-display text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 border-b-2 py-2 cursor-pointer ${
+              activeTab === "az-codes"
+                ? "border-purple-500 text-white"
+                : "border-transparent text-zinc-400 hover:text-white"
+            }`}
+          >
+            <Hash className="h-4 w-4 text-purple-400" />
+            A-Z & Códigos
           </button>
           
           <button
@@ -526,6 +539,12 @@ export default function Navbar({
           className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "catalog" ? "text-purple-400 font-semibold" : "text-zinc-500"}`}
         >
           Catálogo
+        </button>
+        <button
+          onClick={() => setActiveTab("az-codes")}
+          className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "az-codes" ? "text-purple-400 font-semibold" : "text-zinc-500"}`}
+        >
+          A-Z & Códigos
         </button>
         <button
           onClick={() => setActiveTab("ranking")}

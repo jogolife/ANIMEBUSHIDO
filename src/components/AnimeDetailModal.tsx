@@ -72,6 +72,27 @@ export default function AnimeDetailModal({
 
   const ratingOptions = ["Péssimo", "Ruim", "OK", "Bom", "Ótimo", "Absolute Cinema"];
 
+  // Fetch personal codes if logged in
+  const [userPersonalCodes, setUserPersonalCodes] = useState<{ [code: string]: string }>({});
+
+  useEffect(() => {
+    if (currentUser.isLoggedIn && currentUser.uid) {
+      fetch(`/api/user-codes/${currentUser.uid}`)
+        .then(res => res.json())
+        .then(data => setUserPersonalCodes(data || {}))
+        .catch(err => console.error("Erro ao carregar codigos pessoais:", err));
+    } else {
+      setUserPersonalCodes({});
+    }
+  }, [currentUser.uid, currentUser.isLoggedIn]);
+
+  const getMappedCodeMeaning = (codeStr: string, fallbackMean: string) => {
+    if (userPersonalCodes && userPersonalCodes[codeStr.toUpperCase()]) {
+      return userPersonalCodes[codeStr.toUpperCase()];
+    }
+    return fallbackMean;
+  };
+
   // Pre-fill active selections if available
   useEffect(() => {
     if (anime.topCodes) {
@@ -315,6 +336,72 @@ export default function AnimeDetailModal({
                   <ThumbsUp className={`h-4 w-4 ${hasVoted ? "fill-white" : ""}`} />
                   {hasVoted ? "Registrado no Ranking!" : "Votar no Ranking"}
                 </button>
+              </div>
+
+              {/* STATS DISTRIBUTION & MOST USED CODES AS REQUESTED */}
+              <div className="bg-[#0c0c0c] border border-zinc-850 p-4 rounded-xl space-y-3.5">
+                <div>
+                  <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center justify-between border-b border-zinc-900 pb-1.5 mb-2.5">
+                    <span>📊 Detalhamento de Notas</span>
+                    <span className="text-[8px] text-zinc-600 font-normal">Membros</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {anime.ratingStats && Object.entries(anime.ratingStats).filter(([_, count]) => count > 0).length > 0 ? (
+                      Object.entries(anime.ratingStats)
+                        .filter(([_, count]) => count > 0)
+                        .sort((a, b) => b[1] - a[1]) // highest vote counts first
+                        .map(([tier, count]) => (
+                          <div key={tier} className="flex justify-between items-center text-xs font-mono">
+                            <span className="text-zinc-400">
+                              {tier === "Absolute Cinema" && "🎬 Absolute Cinema"}
+                              {tier === "Ótimo" && "⭐ Ótimo"}
+                              {tier === "Bom" && "✔️ Bom"}
+                              {tier === "OK" && "👌 OK"}
+                              {tier === "Ruim" && "👎 Ruim"}
+                              {tier === "Péssimo" && "🗑️ Péssimo"}
+                            </span>
+                            <span className="text-zinc-500 bg-zinc-950 px-1.5 py-0.2 rounded border border-zinc-900">
+                              <strong className="text-amber-400 font-bold">{count}</strong> {count === 1 ? 'membro' : 'membros'}
+                            </span>
+                          </div>
+                        ))
+                    ) : (
+                      <div className="text-[10px] text-zinc-500 font-mono italic text-center">Nenhum voto de nota registrado</div>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] text-zinc-500 font-mono uppercase tracking-wider flex items-center justify-between border-b border-zinc-900 pb-1.5 mb-2.5">
+                    <span>🏷️ Códigos Mais Usados</span>
+                    <span className="text-[8px] text-zinc-600 font-normal">Votos</span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {anime.codeStats && Object.entries(anime.codeStats).filter(([_, count]) => count > 0).length > 0 ? (
+                      Object.entries(anime.codeStats)
+                        .filter(([_, count]) => count > 0)
+                        .sort((a, b) => b[1] - a[1]) // highest first
+                        .map(([code, count]) => {
+                          const globalObj = availableCodes.find(c => c.code === code);
+                          const currentMean = getMappedCodeMeaning(code, globalObj?.meaning || "Tag de Estilo");
+                          return (
+                            <div key={code} className="flex justify-between items-center text-xs font-mono">
+                              <span className="text-zinc-400 text-left truncate max-w-[130px]" title={`${code} — ${currentMean}`}>
+                                <strong className="text-purple-400">{code}</strong> <span className="text-zinc-550 text-[10px]">({currentMean})</span>
+                              </span>
+                              <span className="text-zinc-500 bg-zinc-900 px-1.5 py-0.2 rounded border border-zinc-950 ml-1">
+                                <strong className="text-zinc-200">{count}</strong> {count === 1 ? 'voto': 'votos'}
+                              </span>
+                            </div>
+                          );
+                        })
+                    ) : (
+                      <div className="text-[10px] text-zinc-500 font-mono italic text-center">Nenhuma tag carimbada ainda</div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* 6-TIER ACTIVE VOTING CORNER FOR AUTHENTICATED */}

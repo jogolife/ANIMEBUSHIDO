@@ -22,6 +22,8 @@ export interface Anime {
   // Custom Dynamic Rating & Feature Codes System
   communityRating?: string; // "Péssimo" | "Ruim" | "OK" | "Bom" | "Ótimo" | "Absolute Cinema"
   topCodes?: string[];      // e.g. ["PO", "LT", "AL"]
+  ratingStats?: { [ratingValue: string]: number };
+  codeStats?: { [code: string]: number };
 }
 
 export interface Code {
