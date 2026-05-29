@@ -31,6 +31,8 @@ export interface Code {
   code: string;
   meaning: string;
   approved: boolean;
+  uses_count?: number;
+  official?: boolean;
 }
 
 export interface Comment {
@@ -60,3 +62,16 @@ export interface PushNotification {
   createdAt: string;
   animeId?: string;
 }
+
+export interface MangaSubmission {
+  id: string;
+  mangaName: string;
+  submittedBy: string;
+  createdAt: string;
+}
+
+export interface MangaRankItem {
+  mangaName: string;
+  count: number;
+}
+

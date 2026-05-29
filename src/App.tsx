@@ -14,7 +14,8 @@ import {
   LayoutGrid,
   ListOrdered,
   HelpCircle,
-  Hash
+  Hash,
+  Key
 } from "lucide-react";
 import { Anime, Comment, NewsItem, PushNotification, Code } from "./types";
 import Navbar from "./components/Navbar";
@@ -25,6 +26,7 @@ import WatchlistSection from "./components/WatchlistSection";
 import AnimeDetailModal from "./components/AnimeDetailModal";
 import AdminPanel from "./components/AdminPanel";
 import AlphabeticalListCodes from "./components/AlphabeticalListCodes";
+import MangaPiece from "./components/MangaPiece";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("catalog");
@@ -41,13 +43,31 @@ export default function App() {
   const [activeComments, setActiveComments] = useState<Comment[]>([]);
 
   // User States (Simulated Login context linked to Express backend preferences)
-  const [currentUser, setCurrentUser] = useState({
-    uid: "anonymous_user",
-    email: "",
-    name: "Otaku Anônimo",
-    role: "user" as "admin" | "vip" | "user",
-    isLoggedIn: false
+  const [currentUser, setCurrentUser] = useState(() => {
+    try {
+      const saved = localStorage.getItem("bushido_currentUser");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Erro ao carregar sessão persistida:", e);
+    }
+    return {
+      uid: "anonymous_user",
+      email: "",
+      name: "Otaku Anônimo",
+      role: "user" as "admin" | "vip" | "user",
+      isLoggedIn: false
+    };
   });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("bushido_currentUser", JSON.stringify(currentUser));
+    } catch (e) {
+      console.error("Erro ao persistir sessão do usuário:", e);
+    }
+  }, [currentUser]);
 
   // Saved ids
   const [votedAnimes, setVotedAnimes] = useState<string[]>([]);
@@ -553,6 +573,20 @@ export default function App() {
               </div>
             </div>
 
+            {/* COZY COMMON COPYRIGHT ANIME BANNER (USER REQUEST) */}
+            <div className="relative h-44 sm:h-56 rounded-2xl overflow-hidden border border-zinc-90 w-full group" id="common-copyright-header-banner">
+              <img 
+                src="https://images.unsplash.com/photo-1578632767115-351597cf2477?w=1600&auto=format&fit=crop&q=80"
+                alt="Cozy Anime Kyoto Streets Vibe"
+                className="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-700"
+                referrerPolicy="no-referrer"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/20" />
+              <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-10 bg-black/75 px-3 py-1.5 rounded-lg border border-zinc-800 text-[10px] font-mono text-zinc-400">
+                🎨 Ilustração Livre de Direitos • Kyoto Dreamscape
+              </div>
+            </div>
+
             {/* FILTER SEARCH RIG */}
             <div className="flex flex-col gap-4 p-5 rounded-2xl bg-zinc-950/80 border border-zinc-850" id="filter-panel">
               
@@ -814,6 +848,11 @@ export default function App() {
           />
         )}
 
+        {/* MANGA PIECE TAB */}
+        {activeTab === "manga-piece" && (
+          <MangaPiece currentUser={currentUser} />
+        )}
+
         {/* 5. MODERATOR ADMIN PANEL PANEL */}
         {activeTab === "admin" && (
           <AdminPanel 
@@ -822,6 +861,8 @@ export default function App() {
             onPostNews={handlePostNews} 
             currentUserRole={currentUser.role}
             onRefreshData={fetchAllData}
+            currentUser={currentUser}
+            setCurrentUser={setCurrentUser}
           />
         )}
 
@@ -864,8 +905,16 @@ export default function App() {
             <a href="#watchlist" onClick={(e) => { e.preventDefault(); setActiveTab("watchlist"); }} className="hover:text-purple-400 transition-colors">Meu Bushidô Pessoal</a>
           </div>
 
-          <div className="text-center sm:text-right font-mono text-[10px] text-zinc-600 block">
+          <div className="text-center sm:text-right font-mono text-[10px] text-zinc-600 flex items-center justify-center sm:justify-end gap-2">
             <span>Sandboxed Cloud Container • Porte Escutado: 3000 • Estilo Editorial Premium Dark</span>
+            <button
+              onClick={() => setActiveTab("admin")}
+              className="text-zinc-700 hover:text-purple-500 cursor-pointer transition-all p-1 hover:scale-110"
+              title="Chave de Moderação"
+              id="discrete-admin-trigger"
+            >
+              <Key className="h-3 w-3" />
+            </button>
           </div>
         </div>
       </footer>

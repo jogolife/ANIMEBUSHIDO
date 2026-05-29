@@ -64,6 +64,13 @@ export default function AlphabeticalListCodes({
   const [newPersonalMeaning, setNewPersonalMeaning] = useState("");
   const [personalFormMsg, setPersonalFormMsg] = useState("");
 
+  // States for proposing/suggesting a code to the community
+  const [suggestedCode, setSuggestedCode] = useState("");
+  const [suggestedMeaning, setSuggestedMeaning] = useState("");
+  const [suggestedDescription, setSuggestedDescription] = useState("");
+  const [suggestMethod, setSuggestMethod] = useState<"email" | "tally" | "google" | "typeform">("email");
+  const [suggestionSuccess, setSuggestionSuccess] = useState(false);
+
   // Fetch personal codes if logged in
   const fetchPersonalCodes = async () => {
     if (currentUser.isLoggedIn && currentUser.uid) {
@@ -246,6 +253,41 @@ export default function AlphabeticalListCodes({
     } catch (err) {
       setPersonalFormMsg("Falha ao criar o código pessoal.");
     }
+  };
+
+  const handleSendSuggestion = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!suggestedCode || !suggestedMeaning) return;
+
+    if (suggestMethod === "email") {
+      const subject = encodeURIComponent(`Sugestão de Novo Código: [${suggestedCode}]`);
+      const body = encodeURIComponent(
+        `Olá Moderadores do Anime Bushidô,\n\nGostaria de sugerir o seguinte código para a comunidade:\n\n` +
+        `• CÓDIGO PROPOSTO: ${suggestedCode}\n` +
+        `• SIGNIFICADO: ${suggestedMeaning}\n` +
+        `• POR QUE É ÚTIL: ${suggestedDescription || "Nenhuma descrição fornecida."}\n\n` +
+        `Sugerido por: ${currentUser.name} (${currentUser.email || "Sem e-mail"})\n\n` +
+        `Obrigado!`
+      );
+      
+      window.location.href = `mailto:animebushidohonor@gmail.com?subject=${subject}&body=${body}`;
+    } else {
+      let url = "";
+      if (suggestMethod === "tally") {
+        url = `https://tally.so/r/nGN88P?code=${encodeURIComponent(suggestedCode)}&meaning=${encodeURIComponent(suggestedMeaning)}&desc=${encodeURIComponent(suggestedDescription)}&email=animebushidohonor@gmail.com`;
+      } else if (suggestMethod === "google") {
+        url = `https://docs.google.com/forms/d/e/1FAIpQLSfpqfPvVnIOn98LhG2gUvUe8k7WqH9L_348C17Fz547_rIe9g/viewform?usp=pp_url&entry.1000001=${encodeURIComponent(suggestedCode)}&entry.2000002=${encodeURIComponent(suggestedMeaning)}&entry.3000003=${encodeURIComponent(suggestedDescription)}`;
+      } else if (suggestMethod === "typeform") {
+        url = `https://form.typeform.com/to/custom_form_id#code=${encodeURIComponent(suggestedCode)}&meaning=${encodeURIComponent(suggestedMeaning)}&desc=${encodeURIComponent(suggestedDescription)}`;
+      }
+      window.open(url, "_blank");
+    }
+
+    setSuggestionSuccess(true);
+    setSuggestedCode("");
+    setSuggestedMeaning("");
+    setSuggestedDescription("");
+    setTimeout(() => setSuggestionSuccess(false), 5000);
   };
 
   return (
@@ -641,6 +683,46 @@ export default function AlphabeticalListCodes({
             </div>
           )}
 
+          {/* SISTEMA AUTOMÁTICO DE CÓDIGOS OFICIAIS PIPELINE FLOW */}
+          <div className="bg-[#0b0816] border border-purple-900/30 rounded-2xl p-4 md:p-5 space-y-3 shadow-md shadow-purple-950/20">
+            <h3 className="font-display font-black text-xs uppercase text-purple-300 tracking-tight flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-purple-400" />
+              Funcionamento do Sistema Automático
+            </h3>
+            
+            <p className="text-[11px] text-zinc-400 leading-relaxed">
+              O site contabiliza automaticamente quantos usuários utilizam a mesma tag no catálogo. Uma vez alcançada a marca de relevância, o próprio sistema oficializa o apelido consensado!
+            </p>
+            
+            {/* Visual Process Flow */}
+            <div className="grid grid-cols-4 gap-1.5 pt-1 text-center">
+              <div className="bg-[#030303] border border-zinc-900/80 p-2 rounded-lg flex flex-col justify-between">
+                <span className="text-[9px] font-mono text-zinc-500 block">Fase 1</span>
+                <span className="text-zinc-200 text-[11px] font-bold mt-1">1 Usuário</span>
+                <span className="text-[8px] text-zinc-500 font-mono mt-auto pt-1">Sugerido</span>
+              </div>
+              <div className="bg-[#030303] border border-zinc-900/80 p-2 rounded-lg flex flex-col justify-between">
+                <span className="text-[9px] font-mono text-zinc-500 block">Fase 2</span>
+                <span className="text-zinc-200 text-[11px] font-bold mt-1">2 Usuários</span>
+                <span className="text-[8px] text-zinc-500 font-mono mt-auto pt-1">Divergência</span>
+              </div>
+              <div className="bg-[#030303] border border-zinc-900/80 p-2 rounded-lg flex flex-col justify-between">
+                <span className="text-[9px] font-mono text-zinc-500 block font-semibold text-purple-400">Fase 3</span>
+                <span className="text-zinc-200 text-[11px] font-bold mt-1">100+ Usos</span>
+                <span className="text-[8px] text-purple-400 font-mono mt-auto pt-1">Consenso</span>
+              </div>
+              <div className="bg-emerald-950/20 border border-emerald-500/20 p-2 rounded-lg flex flex-col justify-between">
+                <span className="text-[9px] font-mono text-emerald-450 block font-black uppercase">Fase 4</span>
+                <span className="text-emerald-400 text-[11px] font-black mt-1">✓ Oficial</span>
+                <span className="text-[8px] text-emerald-500 font-mono mt-auto pt-1">Liberado</span>
+              </div>
+            </div>
+
+            <div className="text-[10px] text-zinc-500 leading-relaxed bg-[#030303]/40 p-2.5 rounded-lg border border-zinc-900/40">
+              <span className="text-amber-400 font-bold">Regra Automática:</span> Se o código atingir <span className="text-zinc-300 font-semibold">100 ou mais usuários</span> (ou <span className="text-zinc-300 font-semibold">&ge; 3</span> em teste), o site promove automaticamente para <strong className="text-emerald-400 font-bold">Oficial da Comunidade</strong>.
+            </div>
+          </div>
+
           {/* MAIN CODES DICTIONARY */}
           <div className="bg-zinc-950 border border-zinc-900 rounded-2xl p-4 md:p-5 space-y-4">
             
@@ -663,7 +745,7 @@ export default function AlphabeticalListCodes({
                 placeholder="Pesquisar nos significados..."
                 value={codeQuery}
                 onChange={(e) => setCodeQuery(e.target.value)}
-                className="w-full bg-[#030303] text-xs text-zinc-200 pl-3 pr-4 py-2.5 rounded-lg border border-zinc-85 border-zinc-850 focus:border-purple-500 outline-none"
+                className="w-full bg-[#030303] text-xs text-zinc-200 pl-3 pr-4 py-2.5 rounded-lg border border-zinc-850 focus:border-purple-500 outline-none"
               />
               {codeQuery && (
                 <button 
@@ -708,34 +790,58 @@ export default function AlphabeticalListCodes({
                               isFilterActive ? "bg-purple-950/20" : ""
                             }`}
                           >
-                            {/* CODE */}
+                            {/* CODE & BADGE */}
                             <td 
-                              className="p-3 pl-4 font-mono font-bold"
+                              className="p-3 pl-4"
                               onClick={() => setSelectedFilterCode(c.code === selectedFilterCode ? null : c.code)}
                             >
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${
-                                isFilterActive
-                                  ? "bg-purple-600 text-white font-extrabold border border-purple-500"
-                                  : "bg-purple-950/40 text-purple-400 border border-purple-955/40"
-                              }`}>
-                                {c.code}
-                              </span>
+                              <div className="flex flex-col gap-1 items-start">
+                                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded ${
+                                  isFilterActive
+                                    ? "bg-purple-600 text-white font-extrabold border border-purple-500"
+                                    : "bg-purple-950/40 text-purple-400 border border-purple-955/40"
+                                }`}>
+                                  {c.code}
+                                </span>
+                                
+                                {c.official && (
+                                  <span className="text-[7.5px] scale-95 origin-left bg-emerald-950 text-emerald-400 border border-emerald-900/50 px-1 py-0.2 rounded font-black tracking-wide uppercase">
+                                    ✓ Oficial
+                                  </span>
+                                )}
+                              </div>
                             </td>
 
-                            {/* MEANING (WITH INDICATION IF PERSONAL OVERRIDDEN) */}
+                            {/* MEANING (WITH DYNAMIC USERS COUNT AND RARE BADGE) */}
                             <td 
                               className="p-3 font-medium text-zinc-350"
                               onClick={() => setSelectedFilterCode(c.code === selectedFilterCode ? null : c.code)}
                             >
-                              <span className={userMeaning ? "text-purple-300 font-semibold" : ""}>
-                                {displayMeaning}
-                              </span>
-                              
-                              {userMeaning && (
-                                <span className="ml-1.5 text-[8px] bg-purple-950 text-purple-400 border border-purple-900/40 px-1 py-0.2 rounded font-mono uppercase font-extrabold tracking-wider" title={`Original: "${globalMeaning}"`}>
-                                  Pessoal
-                                </span>
-                              )}
+                              <div className="flex flex-col gap-0.5">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={userMeaning ? "text-purple-300 font-semibold" : ""}>
+                                    {displayMeaning}
+                                  </span>
+                                  
+                                  {userMeaning && (
+                                    <span className="text-[8px] bg-purple-950 text-purple-400 border border-purple-900/40 px-1 py-0.2 rounded font-mono uppercase font-extrabold tracking-wider" title={`Original: "${globalMeaning}"`}>
+                                      Pessoal
+                                    </span>
+                                  )}
+                                </div>
+                                
+                                <div className="text-[10.5px] text-zinc-500 font-mono mt-0.5">
+                                  {c.code === "FM" ? (
+                                    <span className="text-amber-400 font-bold flex items-center gap-1">
+                                      ✨ Código raro encontrado: Usado por apenas 2% dos usuários
+                                    </span>
+                                  ) : (
+                                    <span>
+                                      Usado por <strong className="text-zinc-300 font-bold">{c.uses_count || 0}</strong> usuários
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </td>
 
                             {/* USER QUICK EDIT ICON TO CUSTOMIZE INTERPRETAZIONE */}
@@ -758,7 +864,7 @@ export default function AlphabeticalListCodes({
                               ) : (
                                 <span className="text-zinc-650" title="Faça login com e-mail para customizar">
                                   Travado
-                                </span>
+                                </span >
                               )}
                             </td>
                           </tr>
@@ -807,6 +913,89 @@ export default function AlphabeticalListCodes({
               <div className="text-[11px] text-zinc-500 leading-normal">
                 <strong className="text-zinc-300">Como funciona o Sistema de Apelidos?</strong> Se você alterar o significado de um código oficial da mesa, a interpretação mudará em seu feed de cartões de anime instantaneamente, enquanto os outros usuários continuarão visualizando o significado cadastrado pela moderação. Prático para criar e gerenciar taxonomias personalizadas!
               </div>
+            </div>
+
+            {/* SUGGEST A NEW CODE DISCIPLINE FORM */}
+            <div className="bg-[#0a0712] border border-amber-500/15 p-4 rounded-xl space-y-3.5" id="suggest-new-code-block">
+              <div className="flex items-center gap-1.5 border-b border-zinc-900 pb-2">
+                <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
+                <h3 className="text-xs font-black text-zinc-200 uppercase tracking-tight">Sugerir Novo Código para a Comunidade</h3>
+              </div>
+
+              <p className="text-[11px] text-zinc-400 leading-relaxed">
+                Tem um acrônimo em mente (ex: <strong className="text-amber-400">"FL"</strong> para <em>Fine Landy</em> / Enquadramento Lindo)? Escolha o seu método preferido e envie para <strong className="text-purple-400">animebushidohonor@gmail.com</strong>!
+              </p>
+
+              {/* Segmented Selector for Submission Method */}
+              <div className="grid grid-cols-4 gap-1 bg-[#04020a] p-1 rounded-lg border border-zinc-900">
+                {(["email", "tally", "google", "typeform"] as const).map((method) => (
+                  <button
+                    key={method}
+                    type="button"
+                    onClick={() => setSuggestMethod(method)}
+                    className={`py-1 text-[9px] font-mono font-bold rounded uppercase cursor-pointer transition-all ${
+                      suggestMethod === method
+                        ? "bg-amber-500 text-black font-extrabold"
+                        : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-950/40"
+                    }`}
+                  >
+                    {method === "email" ? "E-mail" : method === "tally" ? "Tally" : method === "google" ? "Google" : "Typeform"}
+                  </button>
+                ))}
+              </div>
+
+              <form onSubmit={handleSendSuggestion} className="space-y-3 pt-0.5">
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="col-span-1">
+                    <label className="text-[8.5px] font-mono text-zinc-500 uppercase block mb-1">Código sugerido:</label>
+                    <input
+                      type="text"
+                      maxLength={4}
+                      placeholder="Ex: FL"
+                      value={suggestedCode}
+                      onChange={(e) => setSuggestedCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
+                      className="w-full bg-[#030303] text-xs text-zinc-200 p-2 rounded border border-zinc-850 focus:border-amber-500 outline-none font-mono"
+                      required
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-[8.5px] font-mono text-zinc-500 uppercase block mb-1">Acrônimo / Significado:</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Enquadramento Lindo"
+                      value={suggestedMeaning}
+                      onChange={(e) => setSuggestedMeaning(e.target.value)}
+                      className="w-full bg-[#030303] text-xs text-zinc-200 p-2 rounded border border-zinc-850 focus:border-amber-500 outline-none"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[8.5px] font-mono text-zinc-500 uppercase block mb-1">Breve Descrição / Utilidade:</label>
+                  <textarea
+                    placeholder="Como esse código ajuda a catalogar de forma consensual?"
+                    value={suggestedDescription}
+                    onChange={(e) => setSuggestedDescription(e.target.value)}
+                    rows={2}
+                    className="w-full bg-[#030303] text-xs text-zinc-200 p-2 rounded border border-zinc-850 focus:border-amber-500 outline-none resize-none"
+                    required
+                  />
+                </div>
+
+                {suggestionSuccess && (
+                  <div className="text-[10px] font-mono text-green-400 bg-green-950/20 border border-green-900/30 p-2 rounded text-center animate-fade-in">
+                    ✓ Sugestão encaminhada com sucesso! Obrigado por colaborar!
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-lg cursor-pointer transition-all shadow-md shadow-amber-500/10 active:scale-95"
+                >
+                  {suggestMethod === "email" ? "Enviar sugestão via E-mail" : `Enviar sugestão via ${suggestMethod === "tally" ? "Tally Forms" : suggestMethod === "google" ? "Google Forms" : "Typeform"}`}
+                </button>
+              </form>
             </div>
 
           </div>

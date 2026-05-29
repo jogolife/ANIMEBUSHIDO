@@ -16,7 +16,11 @@ import {
   Eye,
   Settings,
   HelpCircle,
-  Film
+  Film,
+  Lock,
+  Mail,
+  Key,
+  ArrowRight
 } from "lucide-react";
 import { NewsItem, Anime, Code } from "../types";
 
@@ -26,6 +30,8 @@ interface AdminPanelProps {
   onPostNews: (newsData: { title: string; content: string; category: string; imageUrl?: string; author: string }) => Promise<void>;
   currentUserRole: "admin" | "vip" | "user";
   onRefreshData: () => void | Promise<void>;
+  currentUser?: any;
+  setCurrentUser?: (user: any) => void;
 }
 
 export default function AdminPanel({
@@ -33,7 +39,9 @@ export default function AdminPanel({
   onTriggerNotification,
   onPostNews,
   currentUserRole,
-  onRefreshData
+  onRefreshData,
+  currentUser,
+  setCurrentUser
 }: AdminPanelProps) {
   // Stats state from back end
   const [stats, setStats] = useState({
@@ -62,6 +70,8 @@ export default function AdminPanel({
   const [animeCalendar, setAnimeCalendar] = useState("");
   const [animeSuccessMsg, setAnimeSuccessMsg] = useState("");
   const [animeErrorMsg, setAnimeErrorMsg] = useState("");
+  const [fetchingExternal, setFetchingExternal] = useState(false);
+  const [externalError, setExternalError] = useState("");
 
   // CRUD Code State
   const [codeName, setCodeName] = useState("");
@@ -193,6 +203,36 @@ export default function AdminPanel({
       }
     } catch {
       setAnimeErrorMsg("Erro de comunicação com o servidor.");
+    }
+  };
+
+  const handleFetchExternalData = async () => {
+    if (!animeTitle.trim()) {
+      setExternalError("Por favor, digite o título da obra acima para podermos buscar.");
+      return;
+    }
+    setFetchingExternal(true);
+    setExternalError("");
+    setAnimeSuccessMsg("");
+    setAnimeErrorMsg("");
+    try {
+      const res = await fetch(`/api/admin/fetch-anime-external?title=${encodeURIComponent(animeTitle)}`);
+      if (!res.ok) {
+        throw new Error("Anime não localizado. Digite o nome em inglês ou japonês para melhores resultados.");
+      }
+      const data = await res.json();
+      setAnimeTitle(data.title || animeTitle);
+      if (data.image) setAnimeImage(data.image);
+      if (data.description) setAnimeDescription(data.description);
+      if (data.season) setAnimeSeason(data.season);
+      if (data.genres) setAnimeGenres(Array.isArray(data.genres) ? data.genres.join(", ") : data.genres);
+      if (data.episodesCount) setAnimeEpisodes(String(data.episodesCount));
+      if (data.rating) setAnimeRating(String(data.rating));
+      setAnimeSuccessMsg("Dados carregados com sucesso das APIs globais Jikan/AniList! Sinta-se livre para ajustar e registrar.");
+    } catch (err: any) {
+      setExternalError(err.message || "Erro de conexão ao buscar.");
+    } finally {
+      setFetchingExternal(false);
     }
   };
 
@@ -351,26 +391,109 @@ export default function AdminPanel({
     }
   };
 
+  const [adminEmail, setAdminEmail] = useState("");
+  const [adminPassword, setAdminPassword] = useState("");
+  const [loginError, setLoginError] = useState("");
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  const handleAdminLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError("");
+
+    if (!adminEmail.trim() || !adminPassword.trim()) {
+      setLoginError("E-mail e senha seguras são obrigatórios.");
+      return;
+    }
+
+    setIsLoggingIn(true);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: adminEmail, password: adminPassword })
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || "Credenciais de administrador inválidas.");
+      }
+
+      const verifiedUser = await res.json();
+      if (setCurrentUser) {
+        setCurrentUser({
+          uid: verifiedUser.uid,
+          email: verifiedUser.email,
+          name: verifiedUser.name,
+          role: verifiedUser.role,
+          isLoggedIn: true
+        });
+      }
+    } catch (err: any) {
+      setLoginError(err.message || "Erro de login.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
   if (currentUserRole !== "admin") {
     return (
-      <div className="bg-[#0a0a0a]/80 border border-zinc-850 p-10 rounded-2xl text-center max-w-xl mx-auto shadow-2xl animate-fade-in" id="admin-unauthorized">
-        <AlertCircle className="h-12 w-12 text-rose-500 mx-auto mb-4" />
-        <h2 className="font-display font-black uppercase text-xl tracking-tight text-white">Console Privado de Autenticação</h2>
-        <p className="text-zinc-400 text-xs mt-3 leading-relaxed">
-          Apenas moderadores designados como <strong className="text-purple-400 font-extrabold uppercase">Admin Bushidô</strong> detêm privilégios de moderação, como alteração de imagens e modificação de características.
-        </p>
-
-        <div className="mt-8 p-4 bg-zinc-950 rounded-xl border border-zinc-900 text-left">
-          <div className="text-[10px] font-mono text-zinc-500 mb-1.5 uppercase tracking-wider flex items-center gap-1">
-            <Settings className="h-3 w-3 text-purple-400" /> Como proceder:
-          </div>
-          <p className="text-xs text-zinc-400 leading-normal">
-            Clique em <strong>Fazer Login ⚡</strong> na barra superior, mude para a aba <strong>Moderador ADM</strong>, e digite a combinação de credenciais seguras:
-          </p>
-          <div className="mt-2.5 bg-black p-2.5 rounded border border-zinc-850 text-[11px] font-mono select-all text-purple-350 text-center">
-            admin@bushido.com <span className="text-zinc-650">/</span> bushido123
-          </div>
+      <div className="bg-[#0a0a0a]/80 border border-zinc-850 p-8 rounded-2xl text-center max-w-md mx-auto shadow-2xl animate-fade-in space-y-6" id="admin-unauthorized">
+        <div className="mx-auto h-12 w-12 rounded-full bg-purple-950/40 text-purple-400 border border-purple-500/20 flex items-center justify-center">
+          <Key className="h-6 w-6 animate-pulse" />
         </div>
+        
+        <div>
+          <h2 className="font-display font-black uppercase text-lg tracking-tight text-white flex items-center justify-center gap-1.5">
+            Console de Moderação Autorizada
+          </h2>
+          <p className="text-zinc-550 text-xs mt-1.5 leading-relaxed">
+            Área de acesso restrito a moderadores e administradores da rede <strong>Anime Bushidô</strong>.
+          </p>
+        </div>
+
+        <form onSubmit={handleAdminLoginSubmit} className="space-y-4 text-left">
+          <div>
+            <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1 flex items-center gap-1">
+              <Mail className="h-3.5 w-3.5 text-purple-400" /> E-mail do Administrador
+            </label>
+            <input
+              type="text"
+              placeholder="admin@bushido.com"
+              value={adminEmail}
+              onChange={(e) => setAdminEmail(e.target.value)}
+              className="w-full bg-black border border-zinc-850 hover:border-zinc-805 text-xs text-zinc-350 p-2.5 rounded-lg outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1 flex items-center gap-1">
+              <Lock className="h-3.5 w-3.5 text-purple-400" /> Senha de Segurança
+            </label>
+            <input
+              type="password"
+              placeholder="Digite a chave mestre (Ex: bushido100)"
+              value={adminPassword}
+              onChange={(e) => setAdminPassword(e.target.value)}
+              className="w-full bg-black border border-zinc-850 hover:border-zinc-805 text-xs text-zinc-350 p-2.5 rounded-lg outline-none focus:border-purple-500 transition-colors"
+            />
+          </div>
+
+          {loginError && (
+            <div className="text-[10px] text-rose-400 bg-rose-950/20 border border-rose-900/25 p-2 rounded flex items-center gap-1.5 font-mono">
+              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+              <span>{loginError}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isLoggingIn}
+            className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 disabled:opacity-50 text-black font-black text-xs rounded-lg uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer transition-colors"
+          >
+            {isLoggingIn ? "Autenticando..." : "Desbloquear Console"}
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        </form>
       </div>
     );
   }
@@ -487,6 +610,33 @@ export default function AdminPanel({
 
               <form onSubmit={handleAnimeFormSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
+                {/* JIKAN & ANILIST AUTOFILL ROW */}
+                <div className="md:col-span-2 bg-[#040406] border border-zinc-900 rounded-xl p-3 flex flex-col md:flex-row items-center justify-between gap-3 mb-1">
+                  <div className="space-y-1">
+                    <span className="text-[11px] font-bold text-purple-305 block font-mono flex items-center gap-1 uppercase">
+                      <Sparkles className="h-3 w-3 text-purple-400 animate-pulse" /> Autocompletar Dados do Catálogo (Jikan / AniList)
+                    </span>
+                    <span className="text-[10px] text-zinc-500 block leading-normal">
+                      Digite o nome aproximado do anime no campo <strong>"Título do Anime"</strong> abaixo, e clique no botão para capturar a capa original, sinopse, pontuação e episódios instantaneamente.
+                    </span>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleFetchExternalData}
+                    disabled={fetchingExternal}
+                    className="w-full md:w-auto px-4 py-2 font-black text-[10.5px] tracking-wide uppercase bg-gradient-to-r from-purple-600 to-purple-800 hover:from-purple-500 hover:to-purple-700 disabled:opacity-50 text-white rounded-lg transition-all cursor-pointer shrink-0"
+                  >
+                    {fetchingExternal ? "Carregando APIs..." : "⚡ Auto-Preencher Ficha"}
+                  </button>
+                </div>
+
+                {externalError && (
+                  <div className="md:col-span-2 text-rose-400 bg-rose-950/20 border border-rose-900/30 text-[10.5px] font-mono px-3 py-2 rounded-lg">
+                    ⚠️ {externalError}
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1">Título do Anime</label>
                   <input

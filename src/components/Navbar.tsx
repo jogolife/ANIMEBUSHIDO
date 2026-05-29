@@ -14,7 +14,8 @@ import {
   Mail,
   Lock,
   ArrowRight,
-  Hash
+  Hash,
+  BookOpen
 } from "lucide-react";
 import { PushNotification } from "../types";
 import VipButton from "./VipButton";
@@ -54,10 +55,44 @@ export default function Navbar({
   // Login form states
   const [loginTab, setLoginTab] = useState<"google" | "admin">("google");
   const [googleEmail, setGoogleEmail] = useState("");
+  const [showManualEmailInput, setShowManualEmailInput] = useState(false);
   
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+
+  const handleInstantGoogleLogin = async (email: string) => {
+    setLoginError("");
+    const localPart = email.split("@")[0];
+    const cleanName = localPart
+      .split(/[-_.]/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: email.trim(),
+          name: cleanName || "Otaku Bushidô"
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao conectar.");
+      }
+
+      const userData = await response.json();
+      setCurrentUser(userData);
+      setGoogleEmail("");
+      setLoginError("");
+      setShowUserMenu(false);
+    } catch (err: any) {
+      setLoginError(err.message || "Erro ao efetuar login.");
+    }
+  };
 
   const handleGoogleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,17 +269,18 @@ export default function Navbar({
           </button>
 
           <button
-            onClick={() => setActiveTab("admin")}
+            onClick={() => setActiveTab("manga-piece")}
             className={`font-display text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 border-b-2 py-2 cursor-pointer ${
-              activeTab === "admin"
-                ? "border-purple-500 text-purple-400 font-bold"
+              activeTab === "manga-piece"
+                ? "border-emerald-500 text-white font-extrabold"
                 : "border-transparent text-zinc-400 hover:text-white"
             }`}
-            title="Painel de Controle e Moderação do Site"
           >
-            <Settings className="h-4 w-4 text-purple-400" />
-            Painel Admin
+            <BookOpen className="h-4 w-4 text-emerald-400 animate-pulse" />
+            Manga Piece 🏴‍☠️
           </button>
+
+
         </div>
 
         {/* NOTIFICATIONS & PROFILE ACCENTS */}
@@ -411,43 +447,66 @@ export default function Navbar({
                   /* AUTHENTICATION INTERFACE */
                   <div className="space-y-4">
                     
-                    {/* TABS SELECTORS */}
-                    <div className="flex border-b border-zinc-900 pb-1">
-                      <button
-                        onClick={() => { setLoginTab("google"); setLoginError(""); }}
-                        className={`flex-1 pb-2 text-[11px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                          loginTab === "google" 
-                            ? "text-purple-400 border-b-2 border-purple-500" 
-                            : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        <Chrome className="h-3 w-3" /> Conta Google
-                      </button>
-                      <button
-                        onClick={() => { setLoginTab("admin"); setLoginError(""); }}
-                        className={`flex-1 pb-2 text-[11px] font-mono font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                          loginTab === "admin" 
-                            ? "text-purple-400 border-b-2 border-purple-500" 
-                            : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" /> Moderador ADM
-                      </button>
+                    {/* G LOGO HEADER */}
+                    <div className="flex flex-col items-center gap-1.5 pt-2 text-center select-none">
+                      <div className="w-9 h-9 rounded-full bg-white flex items-center justify-center shadow-lg border border-zinc-200">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24">
+                          <path
+                            fill="#EA4335"
+                            d="M12.24 10.285V14.4h6.887C18.2 16.92 15.645 18.6 12.24 18.6c-3.636 0-6.6-2.964-6.6-6.6s2.964-6.6 6.6-6.6c1.636 0 3.123.6 4.27 1.636l3.122-3.122C17.585 1.956 15.055 1 12.24 1c-6.122 0-11.1 4.978-11.1 11.1s4.978 11.1 11.1 11.1c5.808 0 11.1-4.148 11.1-11.1 0-.696-.06-1.375-.175-2.025H12.24z"
+                          />
+                        </svg>
+                      </div>
+                      <h4 className="font-display font-black text-xs uppercase text-white tracking-wider mt-1.5">
+                        Conectar com Conta Google
+                      </h4>
+                      <p className="text-[10.5px] text-zinc-500 max-w-[240px] leading-normal">
+                        No Bushidô, sua honra e prestígio são associados à sua conta oficial.
+                      </p>
                     </div>
 
-                    {/* GOOGLE ENTRANCE FORM */}
-                    {loginTab === "google" && (
+                    {!showManualEmailInput ? (
+                      <div className="space-y-3 pt-1">
+                        {/* 1-CLICK GOOGLE ACCOUNT SIGN IN BUTTON */}
+                        <button
+                          type="button"
+                          onClick={() => handleInstantGoogleLogin("narutofamilyhinata@gmail.com")}
+                          className="w-full py-3 bg-white hover:bg-zinc-100 text-black font-black text-xs rounded-xl uppercase tracking-wider flex items-center justify-center gap-2.5 cursor-pointer shadow-md border border-zinc-200 transition-all scale-100 hover:scale-[1.01]"
+                        >
+                          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                            <path
+                              fill="#EA4335"
+                              d="M12.24 10.285V14.4h6.887C18.2 16.92 15.645 18.6 12.24 18.6c-3.636 0-6.6-2.964-6.6-6.6s2.964-6.6 6.6-6.6c1.636 0 3.123.6 4.27 1.636l3.122-3.122C17.585 1.956 15.055 1 12.24 1c-6.122 0-11.1 4.978-11.1 11.1s4.978 11.1 11.1 11.1c5.808 0 11.1-4.148 11.1-11.1 0-.696-.06-1.375-.175-2.025H12.24z"
+                            />
+                          </svg>
+                          narutofamilyhinata@gmail.com
+                        </button>
+
+                        {loginError && (
+                          <div className="text-[10px] text-rose-400 bg-rose-950/20 border border-rose-500/10 p-2 rounded leading-tight">
+                            ⚠️ {loginError}
+                          </div>
+                        )}
+
+                        <div className="text-center pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setShowManualEmailInput(true)}
+                            className="text-[10.5px] font-mono text-zinc-500 hover:text-purple-400 underline transition-colors cursor-pointer"
+                          >
+                            Usar outro e-mail do Google
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      /* MANUAL GMAIL INPUT FIELD */
                       <form onSubmit={handleGoogleLoginSubmit} className="space-y-3">
-                        <p className="text-[11px] text-zinc-400 leading-normal">
-                          Entre instantaneamente com seu endereço de e-mail do Google (Conta Padrão ou Premium). No Bushidô, priorizamos integridade.
-                        </p>
-                        
                         <div>
-                          <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1 flex items-center gap-1">
-                            <Mail className="h-3 w-3 text-purple-400" /> E-mail do Google
+                          <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1.5 flex items-center gap-1">
+                            <Mail className="h-3.5 w-3.5 text-purple-400" /> Endereço do Google Email
                           </label>
                           <input
-                            type="text"
+                            type="email"
                             placeholder="exemplo@gmail.com"
                             value={googleEmail}
                             onChange={(e) => setGoogleEmail(e.target.value)}
@@ -467,54 +526,16 @@ export default function Navbar({
                         >
                           Entrar com Google <ArrowRight className="h-3.5 w-3.5" />
                         </button>
-                      </form>
-                    )}
 
-                    {/* SECURE ADMIN LOGIN FORM */}
-                    {loginTab === "admin" && (
-                      <form onSubmit={handleAdminLoginSubmit} className="space-y-3">
-                        <p className="text-[11px] text-zinc-400 leading-normal">
-                          Insira as credenciais de e-mail e senha seguras fornecidas no manual para desbloquear o console de edição de animes.
-                        </p>
-
-                        <div>
-                          <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1 flex items-center gap-1">
-                            <Mail className="h-3 w-3 text-purple-400" /> E-mail Administrativo
-                          </label>
-                          <input
-                            type="text"
-                            placeholder="admin@bushido.com"
-                            value={adminEmail}
-                            onChange={(e) => setAdminEmail(e.target.value)}
-                            className="w-full bg-[#050505] border border-zinc-800 hover:border-zinc-700 text-xs text-zinc-200 p-2.5 rounded-lg outline-none focus:border-purple-500 transition-colors"
-                          />
+                        <div className="text-center pt-1">
+                          <button
+                            type="button"
+                            onClick={() => { setShowManualEmailInput(false); setLoginError(""); }}
+                            className="text-[10.5px] font-mono text-zinc-500 hover:text-purple-400 transition-colors cursor-pointer"
+                          >
+                            ← Voltar ao início
+                          </button>
                         </div>
-
-                        <div>
-                          <label className="block text-[10px] font-mono text-zinc-500 uppercase mb-1 flex items-center gap-1">
-                            <Lock className="h-3 w-3 text-purple-400" /> Senha Confidencial
-                          </label>
-                          <input
-                            type="password"
-                            placeholder="••••••••••••"
-                            value={adminPassword}
-                            onChange={(e) => setAdminPassword(e.target.value)}
-                            className="w-full bg-[#050505] border border-zinc-800 hover:border-zinc-700 text-xs text-zinc-200 p-2.5 rounded-lg outline-none focus:border-purple-500 transition-colors"
-                          />
-                        </div>
-
-                        {loginError && (
-                          <div className="text-[10px] text-rose-400 bg-rose-950/20 border border-rose-500/10 p-2 rounded leading-tight">
-                            ⚠️ {loginError}
-                          </div>
-                        )}
-
-                        <button
-                          type="submit"
-                          className="w-full py-2.5 bg-zinc-100 hover:bg-zinc-200 text-black font-black text-xs rounded-lg uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer transition-colors"
-                        >
-                          Autenticar Credenciais
-                        </button>
                       </form>
                     )}
 
@@ -562,11 +583,12 @@ export default function Navbar({
           Favoritos
         </button>
         <button
-          onClick={() => setActiveTab("admin")}
-          className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "admin" ? "text-purple-400 font-semibold" : "text-zinc-500"}`}
+          onClick={() => setActiveTab("manga-piece")}
+          className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "manga-piece" ? "text-emerald-450 font-semibold animate-pulse" : "text-zinc-500"}`}
         >
-          Admin
+          Manga Piece 🏴‍☠️
         </button>
+
       </div>
     </nav>
   );
