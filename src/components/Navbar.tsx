@@ -17,6 +17,7 @@ import {
   Hash
 } from "lucide-react";
 import { PushNotification } from "../types";
+import VipButton from "./VipButton";
 
 interface NavbarProps {
   activeTab: string;
@@ -53,13 +54,12 @@ export default function Navbar({
   // Login form states
   const [loginTab, setLoginTab] = useState<"google" | "admin">("google");
   const [googleEmail, setGoogleEmail] = useState("");
-  const [isVipCheckbox, setIsVipCheckbox] = useState(false);
   
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
-  const handleGoogleLoginSubmit = (e: React.FormEvent) => {
+  const handleGoogleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
 
@@ -80,20 +80,31 @@ export default function Navbar({
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
       .join(" ");
 
-    const selectedRole = isVipCheckbox ? "vip" : "user";
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: googleEmail.trim(),
+          name: cleanName || "Otaku Bushidô"
+        })
+      });
 
-    setCurrentUser({
-      uid: `u_google_${Math.random().toString(36).substr(2, 4)}`,
-      email: googleEmail.trim(),
-      name: cleanName || "Otaku Bushidô",
-      role: selectedRole,
-      isLoggedIn: true
-    });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao conectar.");
+      }
 
-    // Reset inputs
-    setGoogleEmail("");
-    setLoginError("");
-    setShowUserMenu(false);
+      const userData = await response.json();
+      setCurrentUser(userData);
+
+      // Reset inputs
+      setGoogleEmail("");
+      setLoginError("");
+      setShowUserMenu(false);
+    } catch (err: any) {
+      setLoginError(err.message || "Erro ao efetuar login.");
+    }
   };
 
   const handleAdminLoginSubmit = (e: React.FormEvent) => {
@@ -105,9 +116,9 @@ export default function Navbar({
       return;
     }
 
-    // Verification check as requested: admin@bushido.com / bushido123
+    // Verification check as requested: admin@bushido.com / bushido100
     const targetEmail = "admin@bushido.com";
-    const targetPassword = "bushido123";
+    const targetPassword = "bushido100";
 
     if (adminEmail.trim().toLowerCase() === targetEmail && adminPassword === targetPassword) {
       setCurrentUser({
@@ -378,7 +389,13 @@ export default function Navbar({
                       ) : currentUser.role === "vip" ? (
                         <span>Seu status **Premium VIP** permite votar, avaliar com peso e comentar com distintivo neon de destaque! ⭐</span>
                       ) : (
-                        <span>Você está conectado! Agora pode dar notas de Absolute Cinema e associar códigos característicos. 🎌</span>
+                        <div className="space-y-3">
+                          <span>Você está conectado! Agora pode dar notas de Absolute Cinema e associar códigos característicos. 🎌</span>
+                          <div className="pt-2 border-t border-purple-900/35">
+                            <p className="text-[10.5px] font-bold text-amber-300 mb-2 uppercase tracking-wider text-center flex items-center justify-center gap-1">⭐ Torne-se Membro Premium ⭐</p>
+                            <VipButton userId={currentUser.uid} className="w-full" />
+                          </div>
+                        </div>
                       )}
                     </div>
 
@@ -438,22 +455,6 @@ export default function Navbar({
                           />
                         </div>
 
-                        {/* PREMIUM INCENTIVE CHECK */}
-                        <label className="flex items-start gap-2 bg-gradient-to-r from-purple-950/20 to-zinc-950 p-2.5 rounded-lg border border-purple-900/20 mt-2 select-none cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={isVipCheckbox}
-                            onChange={(e) => setIsVipCheckbox(e.target.checked)}
-                            className="mt-0.5 rounded text-purple-600 focus:ring-0 bg-black border-zinc-800"
-                          />
-                          <div className="flex flex-col">
-                            <span className="text-xs font-bold text-amber-300 flex items-center gap-1">
-                              🌟 Ativar Status Premium VIP
-                            </span>
-                            <span className="text-[9px] text-zinc-500 leading-normal">Atribui um distintivo reluzente dourado e dá maior visibilidade aos seus comentários.</span>
-                          </div>
-                        </label>
-
                         {loginError && (
                           <div className="text-[10px] text-rose-400 bg-rose-950/20 border border-rose-500/10 p-2 rounded leading-tight">
                             ⚠️ {loginError}
@@ -500,10 +501,6 @@ export default function Navbar({
                             onChange={(e) => setAdminPassword(e.target.value)}
                             className="w-full bg-[#050505] border border-zinc-800 hover:border-zinc-700 text-xs text-zinc-200 p-2.5 rounded-lg outline-none focus:border-purple-500 transition-colors"
                           />
-                        </div>
-
-                        <div className="bg-zinc-950 p-2 rounded border border-zinc-900 text-[9px] text-zinc-500 font-mono">
-                          Dica de Teste ADM: <strong className="text-zinc-400">admin@bushido.com</strong> / <strong className="text-zinc-400">bushido123</strong>
                         </div>
 
                         {loginError && (

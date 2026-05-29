@@ -1,6 +1,7 @@
 import React from "react";
 import { Heart, Bookmark, Eye, Trash, Sparkles, Film } from "lucide-react";
 import { Anime } from "../types";
+import VipButton from "./VipButton";
 
 interface WatchlistSectionProps {
   animes: Anime[];
@@ -9,6 +10,13 @@ interface WatchlistSectionProps {
   onToggleFavorite: (id: string, e?: React.MouseEvent) => void;
   onToggleWatchlist: (id: string, e?: React.MouseEvent) => void;
   onSelectAnime: (anime: Anime) => void;
+  currentUser: {
+    uid: string;
+    email?: string;
+    name: string;
+    role: "admin" | "vip" | "user";
+    isLoggedIn: boolean;
+  };
 }
 
 export default function WatchlistSection({
@@ -17,7 +25,8 @@ export default function WatchlistSection({
   watchlist,
   onToggleFavorite,
   onToggleWatchlist,
-  onSelectAnime
+  onSelectAnime,
+  currentUser
 }: WatchlistSectionProps) {
   const favoriteAnimes = animes.filter((a) => favorites.includes(a.id));
   const watchlistAnimes = animes.filter((a) => watchlist.includes(a.id));
@@ -35,6 +44,21 @@ export default function WatchlistSection({
           Gerencie facilmente seus animes favoritos e monte sua lista de maratona para organizar sua rotina.
         </p>
       </div>
+
+      {currentUser.isLoggedIn && currentUser.role === "user" && (
+        <div className="bg-[#0b0810] border border-purple-500/20 p-5 rounded-xl flex flex-col md:flex-row items-center justify-between gap-4 animate-fade-in">
+          <div className="space-y-1.5 text-center md:text-left">
+            <span className="bg-amber-950/50 text-amber-300 border border-amber-500/20 px-2 py-0.5 text-[9px] font-mono rounded font-bold uppercase tracking-widest inline-block select-none">
+              🔥 BENEFÍCIO PREMIUM DE VALOR
+            </span>
+            <h4 className="text-sm font-black text-zinc-100 uppercase tracking-tight">ADQUIRA CRachá VIP DO ANIME BUSHIDÔ</h4>
+            <p className="text-zinc-400 text-xs leading-relaxed max-w-xl">
+              Destaque seus comentários com badge dourado e influencie mais as classificações do catálogo! Processado de forma ultra-segura e fácil pelo Mercado Pago.
+            </p>
+          </div>
+          <VipButton userId={currentUser.uid} className="shrink-0 w-full md:w-auto" />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         

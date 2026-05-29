@@ -130,6 +130,44 @@ export default function App() {
   // Poll notifications periodically to simulate Push Alerts
   useEffect(() => {
     fetchAllData();
+
+    // Check Mercado Pago Success / Cancel query parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const wasSuccess = urlParams.get("success") === "true";
+    const payUserId = urlParams.get("userId");
+
+    if (wasSuccess && payUserId) {
+      const upgradeToVip = async () => {
+        try {
+          const res = await fetch("/api/auth/upgrade-vip", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ userId: payUserId })
+          });
+
+          if (res.ok) {
+            // Automatically upgrade currentUser state to 'vip'
+            setCurrentUser(prev => ({
+              ...prev,
+              role: "vip"
+            }));
+            alert("Sucesso! Sua conta foi atualizada para VIP Premium. Aproveite os distintivos dourados e peso extra nas notas! ⭐👑");
+          }
+        } catch (error) {
+          console.error("Erro ao ativar VIP via Mercado Pago:", error);
+        } finally {
+          // Clear query params to make URL look beautiful & prevent duplicate trigger alerts
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+      
+      upgradeToVip();
+    } else if (urlParams.get("cancel") === "true") {
+      alert("A transação do VIP Premium foi cancelada. Volte quando quiser!");
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   useEffect(() => {
@@ -772,6 +810,7 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite} 
             onToggleWatchlist={handleToggleWatchlist} 
             onSelectAnime={setSelectedAnime}
+            currentUser={currentUser}
           />
         )}
 

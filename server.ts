@@ -3,6 +3,7 @@ import path from "path";
 import fs from "fs";
 import { createServer as createViteServer } from "vite";
 import { Anime, Comment, NewsItem, PushNotification } from "./src/types";
+import { MercadoPagoConfig, Preference } from "mercadopago";
 
 const app = express();
 const PORT = 3000;
@@ -293,6 +294,7 @@ interface DatabaseSchema {
   codes?: Code[];
   ratings?: Rating[];
   userCodes?: { [userId: string]: { [code: string]: string } }; // Personal code meaning overrides: userId -> code -> custom meaning
+  userRoles?: { [userId: string]: "admin" | "vip" | "user" };
 }
 
 // Database Helper
@@ -950,6 +952,108 @@ app.get("/api/admin/stats", (req, res) => {
     totalComments,
     totalNews
   });
+});
+
+// PERSISTENT AUTH & BILLING ENDPOINTS BY USER REQUEST
+app.post("/api/auth/login", (req, res) => {
+  const { email, name } = req.body;
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "E-mail de login inválido." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.userRoles) dbData.userRoles = {};
+
+  const cleanEmail = email.trim().toLowerCase();
+  // Derive a solid, safe userId from their Gmail to persist favorites & VIP status
+  const uid = `u_${cleanEmail.replace(/[^a-zA-Z0-9]/g, "_")}`;
+
+  let role: "user" | "vip" | "admin" = "user";
+  if (cleanEmail === "admin@bushido.com") {
+    role = "admin";
+  } else if (dbData.userRoles[uid]) {
+    role = dbData.userRoles[uid];
+  } else {
+    dbData.userRoles[uid] = "user";
+    saveDb(dbData);
+  }
+
+  res.json({
+    uid,
+    email: cleanEmail,
+    name: name || "Otaku Bushidô",
+    role,
+    isLoggedIn: true
+  });
+});
+
+app.post("/api/auth/upgrade-vip", (req, res) => {
+  const { userId } = req.body;
+  if (!userId) {
+    return res.status(400).json({ error: "O identificador do usuário é obrigatório." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.userRoles) dbData.userRoles = {};
+
+  dbData.userRoles[userId] = "vip";
+  saveDb(dbData);
+
+  res.json({ success: true, role: "vip" });
+});
+
+// Mercado Pago checkout endpoint
+app.post("/api/checkout", async (req, res) => {
+  try {
+    const { userId } = req.body;
+    if (!userId) {
+      return res.status(400).json({ error: "O identificador do usuário (userId) é necessário." });
+    }
+
+    const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
+    if (!accessToken) {
+      return res.status(400).json({ 
+        error: "O Token de Acesso do Mercado Pago (MERCADOPAGO_ACCESS_TOKEN) não foi configurado no servidor! Por favor, configure-o no painel de configurações para habilitar pagamentos de verdade." 
+      });
+    }
+
+    const client = new MercadoPagoConfig({ accessToken });
+    const preference = new Preference(client);
+
+    const origin = req.headers.referer || req.headers.origin || "http://localhost:3000";
+    const cleanOrigin = origin.split("?")[0];
+
+    const result = await preference.create({
+      body: {
+        items: [
+          {
+            id: "vip-bushido",
+            title: "VIP AnimeBushido",
+            description: "Status de Membro VIP Premium no Anime Bushidô. Desbloqueia distintivo com destaque e contagem de votos!",
+            quantity: 1,
+            unit_price: 9.99,
+            currency_id: "BRL"
+          }
+        ],
+        back_urls: {
+          success: `${cleanOrigin}?success=true&userId=${encodeURIComponent(userId)}`,
+          failure: `${cleanOrigin}?cancel=true`,
+          pending: `${cleanOrigin}?cancel=true`
+        },
+        auto_return: "approved",
+        metadata: {
+          userId: userId
+        }
+      }
+    });
+
+    res.json({
+      url: result.init_point
+    });
+  } catch (error: any) {
+    console.error("Erro ao criar preferência do Mercado Pago:", error);
+    res.status(500).json({ error: error.message || "Erro interno de checkout." });
+  }
 });
 
 async function startServer() {
