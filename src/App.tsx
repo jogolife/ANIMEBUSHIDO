@@ -30,6 +30,7 @@ import AdminPanel from "./components/AdminPanel";
 import AlphabeticalListCodes from "./components/AlphabeticalListCodes";
 import MangaPiece from "./components/MangaPiece";
 import CommunityChat from "./components/CommunityChat";
+import PopularCharacters from "./components/PopularCharacters";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("catalog");
@@ -935,6 +936,11 @@ export default function App() {
         {/* MANGA PIECE TAB */}
         {activeTab === "manga-piece" && (
           <MangaPiece currentUser={currentUser} />
+        )}
+
+        {/* POPULAR CHARACTERS TAB (USER REQUEST) */}
+        {activeTab === "popular-characters" && (
+          <PopularCharacters currentUser={currentUser} />
         )}
 
         {/* 5. MODERATOR ADMIN PANEL PANEL */}

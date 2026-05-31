@@ -93,3 +93,12 @@ export interface ChatMessage {
   uid: string;
 }
 
+export interface PopularCharacter {
+  id: string;
+  name: string;
+  animeOrManga: string;
+  imageUrl: string;
+  votes: number;
+  votedUserIds: string[];
+}
+

@@ -372,6 +372,15 @@ export interface ChatMessage {
   uid: string;
 }
 
+export interface PopularCharacter {
+  id: string;
+  name: string;
+  animeOrManga: string;
+  imageUrl: string;
+  votes: number;
+  votedUserIds: string[]; // List of user IDs who voted for this character
+}
+
 interface DatabaseSchema {
   animes: Anime[];
   comments: Comment[];
@@ -388,7 +397,67 @@ interface DatabaseSchema {
   communityTips?: CommunityTip[];
   chatMessages?: ChatMessage[];
   bannedUsers?: string[];
+  popularCharacters?: PopularCharacter[];
 }
+
+const DEFAULT_POPULAR_CHARACTERS: PopularCharacter[] = [
+  {
+    id: "pc-1",
+    name: "Monkey D. Luffy",
+    animeOrManga: "One Piece",
+    imageUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80",
+    votes: 45,
+    votedUserIds: []
+  },
+  {
+    id: "pc-2",
+    name: "Naruto Uzumaki",
+    animeOrManga: "Naruto",
+    imageUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80",
+    votes: 38,
+    votedUserIds: []
+  },
+  {
+    id: "pc-3",
+    name: "Frieren",
+    animeOrManga: "Sousou no Frieren",
+    imageUrl: "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=600&auto=format&fit=crop&q=80",
+    votes: 42,
+    votedUserIds: []
+  },
+  {
+    id: "pc-4",
+    name: "Satoru Gojo",
+    animeOrManga: "Jujutsu Kaisen",
+    imageUrl: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=600&auto=format&fit=crop&q=80",
+    votes: 30,
+    votedUserIds: []
+  },
+  {
+    id: "pc-5",
+    name: "Son Goku",
+    animeOrManga: "Dragon Ball Z",
+    imageUrl: "https://images.unsplash.com/photo-1608889174637-3c44f6326f1a?w=600&auto=format&fit=crop&q=80",
+    votes: 35,
+    votedUserIds: []
+  },
+  {
+    id: "pc-6",
+    name: "Roronoa Zoro",
+    animeOrManga: "One Piece",
+    imageUrl: "https://images.unsplash.com/photo-1560169897-fc0cdbdfa4d5?w=600&auto=format&fit=crop&q=80",
+    votes: 28,
+    votedUserIds: []
+  },
+  {
+    id: "pc-7",
+    name: "Levi Ackerman",
+    animeOrManga: "Attack on Titan",
+    imageUrl: "https://images.unsplash.com/photo-1563089145-599997674d42?w=600&auto=format&fit=crop&q=80",
+    votes: 25,
+    votedUserIds: []
+  }
+];
 
 // Database Helper
 const loadDb = (): DatabaseSchema => {
@@ -464,6 +533,9 @@ const loadDb = (): DatabaseSchema => {
       if (!parsed.bannedUsers) {
         parsed.bannedUsers = [];
       }
+      if (!parsed.popularCharacters) {
+        parsed.popularCharacters = DEFAULT_POPULAR_CHARACTERS;
+      }
       saveDb(parsed); // Save migrated structure
       return parsed;
     }
@@ -511,7 +583,8 @@ const loadDb = (): DatabaseSchema => {
         uid: "admin_superuser"
       }
     ],
-    bannedUsers: []
+    bannedUsers: [],
+    popularCharacters: DEFAULT_POPULAR_CHARACTERS
   };
   saveDb(defaultDb);
   return defaultDb;
@@ -1746,6 +1819,151 @@ app.post("/api/admin/chat/unban", (req, res) => {
 
   res.json({ success: true, bannedUsers: dbData.bannedUsers });
 });
+
+
+// --- POPULAR CHARACTERS VOTING API (USER REQUEST) ---
+
+app.get("/api/popular-characters", (req, res) => {
+  const dbData = loadDb();
+  if (!dbData.popularCharacters) {
+    dbData.popularCharacters = DEFAULT_POPULAR_CHARACTERS;
+  }
+
+  // Sort characters by votes descending
+  const sorted = [...dbData.popularCharacters].sort((a, b) => b.votes - a.votes);
+  const top3 = sorted.slice(0, 3);
+  const top10 = sorted.slice(0, 10);
+
+  res.json({
+    characters: dbData.popularCharacters,
+    top3,
+    top10
+  });
+});
+
+app.post("/api/popular-characters", (req, res) => {
+  const { name, animeOrManga, imageUrl } = req.body;
+  if (!name || typeof name !== "string" || name.trim() === "") {
+    return res.status(400).json({ error: "O nome do personagem é obrigatório." });
+  }
+  if (!animeOrManga || typeof animeOrManga !== "string" || animeOrManga.trim() === "") {
+    return res.status(400).json({ error: "O anime ou mangá de origem é obrigatório." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.popularCharacters) {
+    dbData.popularCharacters = DEFAULT_POPULAR_CHARACTERS;
+  }
+
+  const normalized = name.trim().toLowerCase();
+  const duplicate = dbData.popularCharacters.some(c => c.name.toLowerCase() === normalized);
+  if (duplicate) {
+    return res.status(400).json({ error: "Este personagem já foi cadastrado!" });
+  }
+
+  const defaultImages = [
+    "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=600&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=600&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?w=600&auto=format&fit=crop&q=80",
+    "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=600&auto=format&fit=crop&q=80"
+  ];
+  const finalImageUrl = imageUrl && imageUrl.trim() !== "" 
+    ? imageUrl.trim() 
+    : defaultImages[Math.floor(Math.random() * defaultImages.length)];
+
+  const newChar = {
+    id: `pc_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+    name: name.trim(),
+    animeOrManga: animeOrManga.trim(),
+    imageUrl: finalImageUrl,
+    votes: 0,
+    votedUserIds: []
+  };
+
+  dbData.popularCharacters.push(newChar);
+  saveDb(dbData);
+
+  // Recalculate and return
+  const sorted = [...dbData.popularCharacters].sort((a, b) => b.votes - a.votes);
+  res.json({
+    success: true,
+    character: newChar,
+    characters: dbData.popularCharacters,
+    top3: sorted.slice(0, 3),
+    top10: sorted.slice(0, 10)
+  });
+});
+
+app.post("/api/popular-characters/:id/vote", (req, res) => {
+  const { id } = req.params;
+  const { userId } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({ error: "Identificação de usuário necessária para votar." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.popularCharacters) {
+    dbData.popularCharacters = DEFAULT_POPULAR_CHARACTERS;
+  }
+
+  // Find character to vote for
+  const targetChar = dbData.popularCharacters.find(c => c.id === id);
+  if (!targetChar) {
+    return res.status(404).json({ error: "Personagem não encontrado." });
+  }
+
+  let alreadyVotedThis = false;
+
+  // Remove userId from all other popular characters (one vote overall rule!)
+  dbData.popularCharacters.forEach(c => {
+    if (!c.votedUserIds) c.votedUserIds = [];
+    if (c.votedUserIds.includes(userId)) {
+      c.votedUserIds = c.votedUserIds.filter(uid => uid !== userId);
+      c.votes = Math.max(0, c.votes - 1);
+      if (c.id === id) {
+        alreadyVotedThis = true;
+      }
+    }
+  });
+
+  // Toggle vote behavior if they clicked their already voted character
+  if (!alreadyVotedThis) {
+    if (!targetChar.votedUserIds) targetChar.votedUserIds = [];
+    targetChar.votedUserIds.push(userId);
+    targetChar.votes += 1;
+  }
+
+  saveDb(dbData);
+
+  const sorted = [...dbData.popularCharacters].sort((a, b) => b.votes - a.votes);
+  res.json({
+    success: true,
+    characters: dbData.popularCharacters,
+    top3: sorted.slice(0, 3),
+    top10: sorted.slice(0, 10)
+  });
+});
+
+app.delete("/api/admin/popular-characters/:id", (req, res) => {
+  const { id } = req.params;
+  const dbData = loadDb();
+  if (!dbData.popularCharacters) {
+    dbData.popularCharacters = DEFAULT_POPULAR_CHARACTERS;
+  }
+
+  dbData.popularCharacters = dbData.popularCharacters.filter(c => c.id !== id);
+  saveDb(dbData);
+
+  const sorted = [...dbData.popularCharacters].sort((a, b) => b.votes - a.votes);
+  res.json({
+    success: true,
+    characters: dbData.popularCharacters,
+    top3: sorted.slice(0, 3),
+    top10: sorted.slice(0, 10)
+  });
+});
+
 
 async function startServer() {
   // Vite integration middleware for development

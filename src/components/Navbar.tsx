@@ -293,6 +293,18 @@ export default function Navbar({
             Manga Piece 🏴‍☠️
           </button>
 
+          <button
+            onClick={() => setActiveTab("popular-characters")}
+            className={`font-display text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 border-b-2 py-2 cursor-pointer ${
+              activeTab === "popular-characters"
+                ? "border-purple-500 text-white font-semibold"
+                : "border-transparent text-zinc-400 hover:text-white"
+            }`}
+          >
+            <Sparkles className="h-4 w-4 text-purple-400" />
+            Votação Pop 👑
+          </button>
+
 
         </div>
 
@@ -606,6 +618,12 @@ export default function Navbar({
           className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "manga-piece" ? "text-emerald-450 font-semibold animate-pulse" : "text-zinc-500"}`}
         >
           Manga Piece 🏴‍☠️
+        </button>
+        <button
+          onClick={() => setActiveTab("popular-characters")}
+          className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "popular-characters" ? "text-purple-450 font-semibold" : "text-zinc-500"}`}
+        >
+          Votação Pop 👑
         </button>
 
       </div>
