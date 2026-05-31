@@ -31,9 +31,28 @@ import AlphabeticalListCodes from "./components/AlphabeticalListCodes";
 import MangaPiece from "./components/MangaPiece";
 import CommunityChat from "./components/CommunityChat";
 import PopularCharacters from "./components/PopularCharacters";
+import SeasonalDetailPage from "./components/SeasonalDetailPage";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("catalog");
+  const [currentPath, setCurrentPath] = useState<string>(window.location.pathname);
+
+  // Monitor path changes for browser back/forward and direct routing
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setCurrentPath(window.location.pathname);
+    };
+    window.addEventListener("popstate", handleLocationChange);
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+    };
+  }, []);
+
+  const navigateTo = (path: string) => {
+    window.history.pushState({}, "", path);
+    setCurrentPath(path);
+  };
+
   const [animes, setAnimes] = useState<Anime[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [notifications, setNotifications] = useState<PushNotification[]>([]);
@@ -605,9 +624,21 @@ export default function App() {
       {/* CORE WRAPPERS */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8 space-y-6" id="core-wrapper">
         
-        {/* 1. CATALOG TAB */}
-        {activeTab === "catalog" && (
-          <div className="space-y-6">
+        {(currentPath === "/one-piece" || currentPath === "/naruto") ? (
+          <SeasonalDetailPage 
+            animeSlug={currentPath === "/one-piece" ? "one-piece" : "naruto"}
+            animeId={currentPath === "/one-piece" ? "14" : "2"}
+            currentUser={currentUser}
+            animes={animes}
+            onVote={handleVote}
+            onRate={handleRateAnime}
+            onBack={() => navigateTo("/")}
+          />
+        ) : (
+          <>
+            {/* 1. CATALOG TAB */}
+            {activeTab === "catalog" && (
+              <div className="space-y-6">
             
             {/* HERO HERO TITLE */}
             <div className="p-6 md:p-10 rounded-2xl bg-zinc-950 border border-zinc-850 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-6 animate-fade-in" id="promotional-billboard">
@@ -652,6 +683,35 @@ export default function App() {
               <div className="absolute bottom-4 left-4 sm:bottom-6 sm:left-6 z-10 bg-black/75 px-3 py-1.5 rounded-lg border border-zinc-800 text-[10px] font-mono text-zinc-400">
                 🎨 Ilustração Livre de Direitos • Kyoto Dreamscape
               </div>
+            </div>
+
+            {/* SEASONAL BATTLEGROUND SHORTCUTS (USER REQUEST) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pb-2" id="seasonal-shortcuts">
+              <button 
+                onClick={() => navigateTo("/one-piece")}
+                className="group relative rounded-2xl overflow-hidden border border-purple-900/30 hover:border-purple-500/50 bg-zinc-950 text-left p-5 transition-all text-white flex justify-between items-center cursor-pointer shadow-lg shadow-purple-955/5"
+              >
+                <div className="absolute top-0 right-0 w-44 h-44 bg-purple-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-purple-500/10 transition-all" />
+                <div className="space-y-1.5 z-10">
+                  <span className="text-[9px] uppercase font-mono font-bold text-purple-400 bg-purple-950/60 border border-purple-900/40 px-2 py-0.5 rounded">Página Especial Temporada</span>
+                  <h3 className="font-display font-black text-lg uppercase tracking-tight mt-1 group-hover:text-purple-355 transition-colors">One Piece / Egghead 🏴‍☠️</h3>
+                  <p className="text-[10px] text-zinc-400 font-mono leading-relaxed max-w-[280px] sm:max-w-md">Votos insanos, notas interativas e combate dos personagens mais populares.</p>
+                </div>
+                <span className="bg-purple-950/40 px-3 py-1.5 rounded-lg border border-purple-900/30 text-purple-400 hover:text-white transition-all text-[11px] font-mono shrink-0 select-none">ENTRAR →</span>
+              </button>
+
+              <button 
+                onClick={() => navigateTo("/naruto")}
+                className="group relative rounded-2xl overflow-hidden border border-orange-900/30 hover:border-orange-500/50 bg-zinc-950 text-left p-5 transition-all text-white flex justify-between items-center cursor-pointer shadow-lg shadow-orange-955/5"
+              >
+                <div className="absolute top-0 right-0 w-44 h-44 bg-orange-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-orange-500/10 transition-all" />
+                <div className="space-y-1.5 z-10">
+                  <span className="text-[9px] uppercase font-mono font-bold text-orange-400 bg-orange-955/40 border border-orange-900/35 px-2 py-0.5 rounded">Página Especial Temporada</span>
+                  <h3 className="font-display font-black text-lg uppercase tracking-tight mt-1 group-hover:text-orange-355 transition-colors">Naruto Shippuden 🦊</h3>
+                  <p className="text-[10px] text-zinc-400 font-mono leading-relaxed max-w-[280px] sm:max-w-md">Caminho ninja com votos, notas interativas e combate de personagens favoritos.</p>
+                </div>
+                <span className="bg-orange-955/40 px-3 py-1.5 rounded-lg border border-orange-900/35 text-orange-400 hover:text-white transition-all text-[11px] font-mono shrink-0 select-none">ENTRAR →</span>
+              </button>
             </div>
 
             {/* FILTER SEARCH RIG */}
@@ -856,7 +916,15 @@ export default function App() {
                         onVote={handleVote}
                         votedAnimes={votedAnimes}
                         isFavorite={favorites.includes(anime.id)}
-                        onSelect={() => setSelectedAnime(anime)}
+                        onSelect={() => {
+                          if (anime.id === "14") {
+                            navigateTo("/one-piece");
+                          } else if (anime.id === "2") {
+                            navigateTo("/naruto");
+                          } else {
+                            setSelectedAnime(anime);
+                          }
+                        }}
                       />
                     ))}
                   </div>
@@ -954,6 +1022,8 @@ export default function App() {
             currentUser={currentUser}
             setCurrentUser={setCurrentUser}
           />
+        )}
+          </>
         )}
 
       </main>
