@@ -10,7 +10,10 @@ import {
   AlertCircle,
   Trophy,
   Compass,
-  CheckCircle2
+  CheckCircle2,
+  Trash2,
+  Pencil,
+  X
 } from "lucide-react";
 import { MangaSubmission, MangaRankItem } from "../types";
 
@@ -34,6 +37,12 @@ export default function MangaPiece({ currentUser }: MangaPieceProps) {
   const [isSending, setIsSending] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
+
+  // States for admin edit mode
+  const [editingSubmissionId, setEditingSubmissionId] = useState<string | null>(null);
+  const [editMangaNameText, setEditMangaNameText] = useState("");
+  const [editSubmittedByText, setEditSubmittedByText] = useState("");
+  const [confirmingDeleteMangaId, setConfirmingDeleteMangaId] = useState<string | null>(null);
 
   const fetchMangaData = async () => {
     try {
@@ -95,6 +104,67 @@ export default function MangaPiece({ currentUser }: MangaPieceProps) {
       setErrorMsg(err.message || "Erro de conexão ao enviar.");
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleEditSubmission = (sub: MangaSubmission) => {
+    setEditingSubmissionId(sub.id);
+    setEditMangaNameText(sub.mangaName);
+    setEditSubmittedByText(sub.submittedBy);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingSubmissionId(null);
+    setEditMangaNameText("");
+    setEditSubmittedByText("");
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editMangaNameText.trim()) {
+      alert("O nome do mangá é obrigatório.");
+      return;
+    }
+    try {
+      const res = await fetch(`/api/admin/manga-piece/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mangaName: editMangaNameText,
+          submittedBy: editSubmittedByText
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissionList(data.submissions || []);
+        setTop10(data.top10 || []);
+        setTop3(data.top3 || []);
+        setEditingSubmissionId(null);
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || "Erro ao salvar alterações.");
+      }
+    } catch (err) {
+      console.error("Erro ao salvar mangá:", err);
+    }
+  };
+
+  const handleDeleteSubmission = async (id: string) => {
+    try {
+      const res = await fetch(`/api/admin/manga-piece/${id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSubmissionList(data.submissions || []);
+        setTop10(data.top10 || []);
+        setTop3(data.top3 || []);
+        setConfirmingDeleteMangaId(null);
+      } else {
+        const errorData = await res.json();
+        alert(errorData.error || "Erro ao excluir indicação.");
+      }
+    } catch (err) {
+      console.error("Erro ao excluir mangá:", err);
     }
   };
 
@@ -347,28 +417,122 @@ export default function MangaPiece({ currentUser }: MangaPieceProps) {
             Nenhuma atividade registrada na rede.
           </div>
         ) : (
-          <div className="max-h-72 overflow-y-auto space-y-2 pr-1" id="manga-stream">
-            {submissionList.slice(0, 15).map((sub) => (
-              <div 
-                key={sub.id}
-                className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-3 rounded-lg bg-[#030303]/40 border border-zinc-900/50 hover:bg-[#030303] transition-colors"
-              >
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-900/20 uppercase font-bold text-center">
-                    📚 Descoberta
-                  </span>
-                  <span className="text-xs font-bold text-zinc-200 capitalize">
-                    {sub.mangaName}
-                  </span>
-                </div>
+          <div className="max-h-96 overflow-y-auto space-y-2 pr-1" id="manga-stream">
+            {submissionList.slice(0, 15).map((sub) => {
+              const isEditingThisSub = editingSubmissionId === sub.id;
 
-                <div className="flex items-center gap-2 text-[10.5px] text-zinc-500 font-mono">
-                  <span>Enviado por: <strong className="text-zinc-400">{sub.submittedBy}</strong></span>
-                  <span>•</span>
-                  <span>{new Date(sub.createdAt).toLocaleDateString("pt-BR")} às {new Date(sub.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+              return (
+                <div 
+                  key={sub.id}
+                  className="p-3 rounded-lg bg-[#030303]/40 border border-zinc-900/50 hover:bg-[#030303] transition-colors space-y-2.5"
+                >
+                  {isEditingThisSub ? (
+                    <div className="space-y-3 animate-fade-in">
+                      <div className="font-mono text-[9px] text-emerald-400 font-bold uppercase tracking-wider">
+                        ✏️ Editar Indicação de Mangá
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-[8px] font-mono text-zinc-500 uppercase mb-0.5">Título do Mangá</label>
+                          <input
+                            type="text"
+                            value={editMangaNameText}
+                            onChange={(e) => setEditMangaNameText(e.target.value)}
+                            className="w-full bg-[#080808] border border-zinc-850 p-2 text-xs text-white rounded outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[8px] font-mono text-zinc-500 uppercase mb-0.5">Autor do Envio</label>
+                          <input
+                            type="text"
+                            value={editSubmittedByText}
+                            onChange={(e) => setEditSubmittedByText(e.target.value)}
+                            className="w-full bg-[#080808] border border-zinc-850 p-2 text-xs text-white rounded outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      </div>
+                      <div className="flex gap-2 justify-end">
+                        <button
+                          type="button"
+                          onClick={handleCancelEdit}
+                          className="px-2.5 py-1 text-[10px] font-mono text-zinc-500 hover:text-white cursor-pointer bg-transparent border border-transparent rounded"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleSaveEdit(sub.id)}
+                          className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 font-mono text-[10px] font-bold text-white rounded cursor-pointer border border-transparent"
+                        >
+                          Salvar Alterações
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                        <span className="text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded bg-emerald-950/40 text-emerald-400 border border-emerald-900/20 uppercase font-bold text-center">
+                          📚 Descoberta
+                        </span>
+                        <span className="text-xs font-bold text-zinc-200 capitalize">
+                          {sub.mangaName}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 justify-between sm:justify-end w-full sm:w-auto">
+                        <div className="flex items-center gap-2 text-[10.5px] text-zinc-500 font-mono">
+                          <span>Enviado por: <strong className="text-zinc-400">{sub.submittedBy}</strong></span>
+                          <span>•</span>
+                          <span>{new Date(sub.createdAt).toLocaleDateString("pt-BR")} às {new Date(sub.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>
+                        </div>
+
+                        {currentUser.role === "admin" && (
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                            <button
+                              type="button"
+                              onClick={() => handleEditSubmission(sub)}
+                              className="p-1 px-2 border border-zinc-900 bg-zinc-950 hover:bg-zinc-900 text-zinc-400 hover:text-white rounded text-[9px] font-mono uppercase font-black tracking-wider flex items-center gap-1 transition cursor-pointer"
+                              title="Modificar item do Manga Piece"
+                            >
+                              <Pencil className="h-3 w-3" /> Editar
+                            </button>
+
+                            {confirmingDeleteMangaId === sub.id ? (
+                              <div className="flex items-center gap-1 animate-fade-in bg-zinc-950 p-1 border border-zinc-900 rounded">
+                                <span className="text-[8px] font-mono text-rose-450 uppercase font-bold px-1">Deletar?</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteSubmission(sub.id)}
+                                  className="px-1.5 py-0.5 bg-rose-600 text-white rounded text-[8px] font-mono font-bold uppercase hover:bg-rose-500 cursor-pointer"
+                                >
+                                  Sim
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmingDeleteMangaId(null)}
+                                  className="px-1.5 py-0.5 bg-zinc-800 text-zinc-350 rounded text-[8px] font-mono font-bold uppercase hover:text-white cursor-pointer"
+                                >
+                                  Não
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setConfirmingDeleteMangaId(sub.id)}
+                                className="p-1 px-2 border border-rose-950/40 bg-rose-950/10 hover:bg-rose-950/30 text-rose-450 hover:text-rose-455 rounded text-[9px] font-mono uppercase font-black tracking-wider flex items-center gap-1 transition cursor-pointer"
+                                title="Excluir indicação de mangá"
+                              >
+                                <Trash2 className="h-3 w-3" /> Excluir
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

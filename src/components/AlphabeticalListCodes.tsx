@@ -7,7 +7,7 @@ import {
   Plus, 
   HelpCircle,
   Filter, 
-  Info,
+  Info, 
   ChevronRight,
   AlertCircle,
   User,
@@ -15,7 +15,9 @@ import {
   RefreshCw,
   Award,
   TrendingUp,
-  BarChart2
+  BarChart2,
+  Trash2,
+  Pencil
 } from "lucide-react";
 import { Anime, Code } from "../types";
 
@@ -31,6 +33,7 @@ interface AlphabeticalListCodesProps {
     role: "admin" | "vip" | "user";
     isLoggedIn: boolean;
   };
+  onRefreshData?: () => void | Promise<void>;
 }
 
 export default function AlphabeticalListCodes({
@@ -38,7 +41,8 @@ export default function AlphabeticalListCodes({
   availableCodes,
   onRateAnime,
   onSelectAnime,
-  currentUser
+  currentUser,
+  onRefreshData
 }: AlphabeticalListCodesProps) {
   // Search query for the animes (supports combination, e.g., PO + TR + VL)
   const [animeQuery, setAnimeQuery] = useState("");
@@ -70,6 +74,83 @@ export default function AlphabeticalListCodes({
   const [suggestedDescription, setSuggestedDescription] = useState("");
   const [suggestMethod, setSuggestMethod] = useState<"email" | "tally" | "google" | "typeform">("email");
   const [suggestionSuccess, setSuggestionSuccess] = useState(false);
+  const [isSubmittingCode, setIsSubmittingCode] = useState(false);
+  const [codeErrorMsg, setCodeErrorMsg] = useState("");
+
+  // User Anime Insertion Form State
+  const [showAddAnimeForm, setShowAddAnimeForm] = useState(false);
+  const [newAnimeTitle, setNewAnimeTitle] = useState("");
+  const [newAnimeGenres, setNewAnimeGenres] = useState("");
+  const [newAnimeDescription, setNewAnimeDescription] = useState("");
+  const [addAnimeStatusMsg, setAddAnimeStatusMsg] = useState<{ success: boolean; msg: string } | null>(null);
+  const [isAddingAnime, setIsAddingAnime] = useState(false);
+
+  // State-based delete confirmation to bypass iframe confirm restrictions
+  const [confirmingDeleteAnimeId, setConfirmingDeleteAnimeId] = useState<string | null>(null);
+  const [confirmingDeleteCodeId, setConfirmingDeleteCodeId] = useState<string | null>(null);
+
+  const handleUserAddAnimeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newAnimeTitle.trim()) {
+      setAddAnimeStatusMsg({ success: false, msg: "O título do anime é obrigatório!" });
+      return;
+    }
+    setIsAddingAnime(true);
+    setAddAnimeStatusMsg(null);
+
+    const genresList = newAnimeGenres
+      ? newAnimeGenres.split(",").map(g => g.trim()).filter(g => g.length > 0)
+      : ["Ação"];
+
+    try {
+      const response = await fetch("/api/user/animes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newAnimeTitle.trim(),
+          description: newAnimeDescription.trim(),
+          genres: genresList
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Erro ao salvar anime.");
+      }
+
+      setAddAnimeStatusMsg({ success: true, msg: `🥋 Anime "${newAnimeTitle.trim()}" adicionado com sucesso! Sincronizando catálogo...` });
+      setNewAnimeTitle("");
+      setNewAnimeGenres("");
+      setNewAnimeDescription("");
+      
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+    } catch (err: any) {
+      setAddAnimeStatusMsg({ success: false, msg: err.message || "Falha ao propor novo anime." });
+    } finally {
+      setIsAddingAnime(false);
+    }
+  };
+
+  const handleDeleteAnimeAction = async (animeId: string) => {
+    try {
+      const response = await fetch(`/api/admin/animes/${animeId}`, {
+        method: "DELETE"
+      });
+      if (response.ok) {
+        setConfirmingDeleteAnimeId(null);
+        if (onRefreshData) {
+          await onRefreshData();
+        }
+      } else {
+        const errorData = await response.json();
+        alert(errorData.error || "Erro ao excluir anime.");
+      }
+    } catch (err) {
+      console.error("Erro deletando anime:", err);
+    }
+  };
 
   // Fetch personal codes if logged in
   const fetchPersonalCodes = async () => {
@@ -200,23 +281,47 @@ export default function AlphabeticalListCodes({
     }
   };
 
-  // Submit/save user custom code meaning
-  const handleSavePersonalMeaning = async (code: string) => {
-    if (!currentUser.isLoggedIn) return;
+  // Submit/save code meaning globally on the fly
+  const handleSaveGlobalMeaning = async (codeId: string, newMeaning: string) => {
+    if (!newMeaning.trim()) return;
     try {
-      const response = await fetch(`/api/user-codes/${currentUser.uid}`, {
-        method: "POST",
+      const response = await fetch(`/api/codes/${codeId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, personal_meaning: customMeaningText })
+        body: JSON.stringify({ meaning: newMeaning.trim() })
       });
       if (response.ok) {
-        const data = await response.json();
-        setUserPersonalCodes(data || {});
         setEditingCodeKey(null);
         setCustomMeaningText("");
+        if (onRefreshData) {
+          await onRefreshData();
+        }
+      } else {
+        const data = await response.json();
+        alert(data.error || "Erro ao salvar significado.");
       }
     } catch (err) {
-      console.error("Erro ao salvar interpretação customizada:", err);
+      console.error("Erro ao salvar significado global:", err);
+    }
+  };
+
+  // Direct code deletion for Admins
+  const handleDeleteCode = async (codeId: string) => {
+    try {
+      const response = await fetch(`/api/admin/codes/${codeId}`, {
+        method: "DELETE"
+      });
+      if (response.ok) {
+        setConfirmingDeleteCodeId(null);
+        if (onRefreshData) {
+          await onRefreshData();
+        }
+      } else {
+        const data = await response.json();
+        alert(data.error || "Erro ao excluir código.");
+      }
+    } catch (err) {
+      console.error("Erro ao excluir código:", err);
     }
   };
 
@@ -255,39 +360,51 @@ export default function AlphabeticalListCodes({
     }
   };
 
-  const handleSendSuggestion = (e: React.FormEvent) => {
+  const handleDirectAddCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!suggestedCode || !suggestedMeaning) return;
 
-    if (suggestMethod === "email") {
-      const subject = encodeURIComponent(`Sugestão de Novo Código: [${suggestedCode}]`);
-      const body = encodeURIComponent(
-        `Olá Moderadores do Anime Bushidô,\n\nGostaria de sugerir o seguinte código para a comunidade:\n\n` +
-        `• CÓDIGO PROPOSTO: ${suggestedCode}\n` +
-        `• SIGNIFICADO: ${suggestedMeaning}\n` +
-        `• POR QUE É ÚTIL: ${suggestedDescription || "Nenhuma descrição fornecida."}\n\n` +
-        `Sugerido por: ${currentUser.name} (${currentUser.email || "Sem e-mail"})\n\n` +
-        `Obrigado!`
-      );
-      
-      window.location.href = `mailto:animebushidohonor@gmail.com?subject=${subject}&body=${body}`;
-    } else {
-      let url = "";
-      if (suggestMethod === "tally") {
-        url = `https://tally.so/r/nGN88P?code=${encodeURIComponent(suggestedCode)}&meaning=${encodeURIComponent(suggestedMeaning)}&desc=${encodeURIComponent(suggestedDescription)}&email=animebushidohonor@gmail.com`;
-      } else if (suggestMethod === "google") {
-        url = `https://docs.google.com/forms/d/e/1FAIpQLSfpqfPvVnIOn98LhG2gUvUe8k7WqH9L_348C17Fz547_rIe9g/viewform?usp=pp_url&entry.1000001=${encodeURIComponent(suggestedCode)}&entry.2000002=${encodeURIComponent(suggestedMeaning)}&entry.3000003=${encodeURIComponent(suggestedDescription)}`;
-      } else if (suggestMethod === "typeform") {
-        url = `https://form.typeform.com/to/custom_form_id#code=${encodeURIComponent(suggestedCode)}&meaning=${encodeURIComponent(suggestedMeaning)}&desc=${encodeURIComponent(suggestedDescription)}`;
-      }
-      window.open(url, "_blank");
+    if (suggestedCode.length < 2) {
+      setCodeErrorMsg("O código deve possuir entre 2 e 4 letras.");
+      return;
     }
 
-    setSuggestionSuccess(true);
-    setSuggestedCode("");
-    setSuggestedMeaning("");
-    setSuggestedDescription("");
-    setTimeout(() => setSuggestionSuccess(false), 5000);
+    setIsSubmittingCode(true);
+    setCodeErrorMsg("");
+    setSuggestionSuccess(false);
+
+    try {
+      const response = await fetch("/api/codes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          code: suggestedCode.toUpperCase().trim(),
+          meaning: suggestedMeaning.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || "Erro ao registrar código.");
+      }
+
+      setSuggestionSuccess(true);
+      setSuggestedCode("");
+      setSuggestedMeaning("");
+      setSuggestedDescription("");
+      
+      if (onRefreshData) {
+        await onRefreshData();
+      }
+      
+      setTimeout(() => setSuggestionSuccess(false), 7000);
+    } catch (err: any) {
+      setCodeErrorMsg(err.message || "Erro de conexão ao servidor.");
+    } finally {
+      setIsSubmittingCode(false);
+    }
   };
 
   return (
@@ -332,8 +449,88 @@ export default function AlphabeticalListCodes({
               <Plus className="h-3.5 w-3.5 text-purple-400" /> Criar Código Privado
             </button>
           )}
+
+          <button 
+            onClick={() => setShowAddAnimeForm(!showAddAnimeForm)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-900/40 hover:bg-purple-900/60 text-xs text-purple-300 font-bold border border-purple-800/40 cursor-pointer transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5 text-emerald-400 animate-pulse" /> Cadastrar Novo Anime 🥋
+          </button>
         </div>
       </div>
+
+      {/* COLLAPSABLE USER CHOSEN ANIME FORM */}
+      {showAddAnimeForm && (
+        <div className="bg-zinc-950 border border-zinc-900 rounded-2xl p-5 space-y-4 shadow-xl animate-fade-in text-left">
+          <div className="flex items-center justify-between border-b border-zinc-900 pb-2.5">
+            <h3 className="font-display font-black text-xs uppercase text-white tracking-widest flex items-center gap-1.5">
+              <Sparkles className="h-4 w-4 text-emerald-450" />
+              🥋 Cadastrar novo anime na listagem de A-Z
+            </h3>
+            <button 
+              onClick={() => setShowAddAnimeForm(false)}
+              className="text-zinc-500 hover:text-zinc-200 text-xs font-mono cursor-pointer"
+            >
+              × Fechar Painel
+            </button>
+          </div>
+
+          <form onSubmit={handleUserAddAnimeSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Nome Oficial do Anime</label>
+                <input
+                  type="text"
+                  placeholder="EX: Sousou no Frieren T2, One Piece..."
+                  value={newAnimeTitle}
+                  onChange={(e) => setNewAnimeTitle(e.target.value)}
+                  className="w-full bg-[#030303] border border-zinc-855 text-xs text-zinc-200 p-2.5 rounded-lg outline-none focus:border-purple-650"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Gêneros (separados por vírgula)</label>
+                <input
+                  type="text"
+                  placeholder="Ação, Seinen, Drama"
+                  value={newAnimeGenres}
+                  onChange={(e) => setNewAnimeGenres(e.target.value)}
+                  className="w-full bg-[#030303] border border-zinc-855 text-xs text-zinc-200 p-2.5 rounded-lg outline-none focus:border-purple-655"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[9px] font-mono text-zinc-500 uppercase tracking-widest">Breve descrição da obra</label>
+              <textarea
+                placeholder="Insira detalhes sobre a proposta narrativa do anime..."
+                value={newAnimeDescription}
+                onChange={(e) => setNewAnimeDescription(e.target.value)}
+                className="w-full bg-[#030303] border border-zinc-855 text-xs text-zinc-200 p-2.5 rounded-lg h-24 resize-none outline-none focus:border-purple-650 font-sans"
+              />
+            </div>
+
+            {addAnimeStatusMsg && (
+              <div className={`p-3 rounded text-[11px] font-mono border ${
+                addAnimeStatusMsg.success 
+                  ? "bg-emerald-950/20 text-emerald-400 border-emerald-950/25" 
+                  : "bg-rose-950/20 text-rose-450 border-rose-950/25"
+              }`}>
+                {addAnimeStatusMsg.msg}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isAddingAnime || !newAnimeTitle.trim()}
+              className="px-5 py-2.5 bg-gradient-to-r from-purple-700 to-indigo-800 hover:from-purple-600 hover:to-indigo-700 disabled:opacity-40 text-white font-bold text-xs uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+            >
+              🥋 Inserir Anime no Catálogo
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* TWO COLUMN SIDE-BY-SIDE RESPONSIVE GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -598,6 +795,40 @@ export default function AlphabeticalListCodes({
                               </div>
                             )}
 
+                            {/* ADMIN DELETION CORNER IN CATALOG */}
+                            {currentUser.role === "admin" && (
+                              <div className="mt-3.5 pt-2.5 border-t border-zinc-900/40 flex items-center justify-between">
+                                <span className="text-[9.5px] font-mono text-zinc-500 uppercase tracking-widest flex items-center gap-1">
+                                  👑 Moderador Controle
+                                </span>
+                                {confirmingDeleteAnimeId === an.id ? (
+                                  <div className="flex items-center gap-1.5 animate-fade-in">
+                                    <span className="text-[10px] text-rose-400 font-mono">Apagar mesmo?</span>
+                                    <button
+                                      onClick={() => handleDeleteAnimeAction(an.id)}
+                                      className="px-2 py-1 bg-rose-600 hover:bg-rose-500 text-white font-mono text-[9px] rounded font-bold uppercase transition"
+                                    >
+                                      Sim, Excluir
+                                    </button>
+                                    <button
+                                      onClick={() => setConfirmingDeleteAnimeId(null)}
+                                      className="px-2 py-1 bg-zinc-850 text-zinc-300 font-mono text-[9px] rounded font-bold uppercase transition hover:text-white"
+                                    >
+                                      Não
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => setConfirmingDeleteAnimeId(an.id)}
+                                    className="p-1 px-2 border border-rose-950/40 bg-rose-950/10 hover:bg-rose-950/30 text-rose-450 hover:text-white rounded text-[9.5px] font-mono uppercase font-black tracking-wider flex items-center gap-1 transition-all cursor-pointer animate-fade-in"
+                                    title="Excluir anime do catálogo de A a Z"
+                                  >
+                                    <Trash2 className="h-3 w-3" /> Excluir Anime
+                                  </button>
+                                )}
+                              </div>
+                            )}
+
                           </li>
                         );
                       })}
@@ -777,10 +1008,6 @@ export default function AlphabeticalListCodes({
                   ) : (
                     filteredCodes.map((c) => {
                       const isFilterActive = selectedFilterCode === c.code;
-                      const globalMeaning = c.meaning;
-                      const userMeaning = userPersonalCodes[c.code.toUpperCase()];
-                      const displayMeaning = userMeaning || globalMeaning;
-
                       const isEditingThisCode = editingCodeKey === c.code;
 
                       return (
@@ -819,15 +1046,9 @@ export default function AlphabeticalListCodes({
                             >
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-1.5">
-                                  <span className={userMeaning ? "text-purple-300 font-semibold" : ""}>
-                                    {displayMeaning}
+                                  <span className="text-zinc-200">
+                                    {c.meaning}
                                   </span>
-                                  
-                                  {userMeaning && (
-                                    <span className="text-[8px] bg-purple-950 text-purple-400 border border-purple-900/40 px-1 py-0.2 rounded font-mono uppercase font-extrabold tracking-wider" title={`Original: "${globalMeaning}"`}>
-                                      Pessoal
-                                    </span>
-                                  )}
                                 </div>
                                 
                                 <div className="text-[10.5px] text-zinc-500 font-mono mt-0.5">
@@ -844,56 +1065,97 @@ export default function AlphabeticalListCodes({
                               </div>
                             </td>
 
-                            {/* USER QUICK EDIT ICON TO CUSTOMIZE INTERPRETAZIONE */}
-                            <td className="p-3 pr-4 text-right font-mono text-[9px]">
-                              {currentUser.isLoggedIn ? (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (isEditingThisCode) {
-                                      setEditingCodeKey(null);
-                                    } else {
-                                      setEditingCodeKey(c.code);
-                                      setCustomMeaningText(userMeaning || globalMeaning);
-                                    }
-                                  }}
-                                  className="text-purple-400 hover:text-purple-305 hover:underline cursor-pointer flex items-center justify-end gap-0.5 ml-auto text-[9.5px] font-bold uppercase transition"
-                                >
-                                  <Settings className="h-3 w-3" /> {userMeaning ? "Alterar" : "Personalizar"}
-                                </button>
-                              ) : (
-                                <span className="text-zinc-650" title="Faça login com e-mail para customizar">
-                                  Travado
-                                </span >
-                              )}
+                            {/* USER QUICK EDIT & ADMIN DELETE ACTIONS */}
+                            <td className="p-3 pr-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {currentUser.role === "admin" && (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        if (isEditingThisCode) {
+                                          setEditingCodeKey(null);
+                                        } else {
+                                          setEditingCodeKey(c.code);
+                                          setCustomMeaningText(c.meaning);
+                                        }
+                                      }}
+                                      className="text-purple-400 hover:text-purple-300 hover:underline cursor-pointer flex items-center gap-1 text-[10px] font-bold uppercase transition"
+                                      title="Editar Significado Geral"
+                                    >
+                                      <Pencil className="h-3 w-3" /> Editar
+                                    </button>
+
+                                    {confirmingDeleteCodeId === c.id ? (
+                                      <div className="flex items-center gap-1 bg-[#060606] p-1 border border-zinc-850 rounded animate-fade-in text-[9px] font-mono leading-none" onClick={(e) => e.stopPropagation()}>
+                                        <span className="text-rose-400 font-bold px-1 select-none">Excluir?</span>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleDeleteCode(c.id);
+                                          }}
+                                          className="px-1.5 py-0.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded cursor-pointer uppercase text-[8px]"
+                                        >
+                                          Sim
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setConfirmingDeleteCodeId(null);
+                                          }}
+                                          className="px-1.5 py-0.5 bg-zinc-800 text-zinc-350 rounded font-bold cursor-pointer uppercase text-[8px] hover:text-white"
+                                        >
+                                          Não
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setConfirmingDeleteCodeId(c.id);
+                                        }}
+                                        className="text-rose-400 hover:text-rose-350 cursor-pointer flex items-center gap-0.5 text-[10px] font-bold uppercase transition border border-rose-955/40 px-1.5 py-0.5 rounded bg-rose-950/20"
+                                        title="Excluir código permanentemente"
+                                      >
+                                        <Trash2 className="h-3 w-3" /> Excluir
+                                      </button>
+                                    )}
+                                  </>
+                                )}
+                              </div>
                             </td>
                           </tr>
 
-                          {/* INLINE EDIT DRAWER SECTION FOR CUSTOM MEANINGS */}
-                          {isEditingThisCode && currentUser.isLoggedIn && (
-                            <tr className="bg-black/50">
-                              <td colSpan={3} className="p-3 pl-4 bg-[#080512]">
+                          {/* INLINE EDIT DRAWER SECTION */}
+                          {isEditingThisCode && (
+                            <tr className="bg-[#0b0816]/70">
+                              <td colSpan={3} className="p-3 pl-4 bg-[#080512] border-y border-purple-950/30">
                                 <div className="space-y-2 text-xs">
-                                  <div className="font-mono text-[9px] text-purple-400 uppercase font-black tracking-widest">
-                                    Definir seu apelido privado para o código {c.code}:
+                                  <div className="font-mono text-[9px] text-purple-400 uppercase font-black tracking-widest flex items-center gap-1.5">
+                                    <Pencil className="h-2.5 w-2.5" /> Editar Significado Geral do Código {c.code}:
                                   </div>
                                   <div className="flex gap-2">
                                     <input
                                       type="text"
-                                      placeholder={`Ex: ${globalMeaning}`}
+                                      placeholder={`Ex: ${c.meaning}`}
                                       value={customMeaningText}
                                       onChange={(e) => setCustomMeaningText(e.target.value)}
-                                      className="flex-1 bg-black text-zinc-200 border border-zinc-850 p-2 rounded text-xs outline-none"
+                                      className="flex-1 bg-black text-zinc-200 border border-zinc-850 p-2.5 rounded-lg text-xs outline-none focus:border-purple-500"
                                     />
                                     <button
-                                      onClick={() => handleSavePersonalMeaning(c.code)}
-                                      className="bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs px-3 rounded uppercase tracking-wider cursor-pointer transition-colors"
+                                      type="button"
+                                      onClick={() => handleSaveGlobalMeaning(c.id, customMeaningText)}
+                                      className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 rounded-lg uppercase tracking-wider cursor-pointer transition-colors"
                                     >
-                                      Salvar
+                                      Salvar Geral
                                     </button>
                                   </div>
-                                  <p className="text-[9px] text-zinc-550 leading-relaxed">
-                                    Deixe em branco e salve se quiser reverter para o significado global padrão (<strong className="text-zinc-400">"{globalMeaning}"</strong>).
+                                  <p className="text-[9px] text-zinc-500 leading-relaxed">
+                                    A alteração será aplicada em tempo real e aparecerá para todos os membros que acessarem o site!
                                   </p>
                                 </div>
                               </td>
@@ -911,89 +1173,68 @@ export default function AlphabeticalListCodes({
             <div className="bg-zinc-950/80 p-3.5 rounded-xl border border-zinc-900 flex items-start gap-2.5">
               <Info className="h-4 w-4 text-purple-400 shrink-0 mt-0.5" />
               <div className="text-[11px] text-zinc-500 leading-normal">
-                <strong className="text-zinc-300">Como funciona o Sistema de Apelidos?</strong> Se você alterar o significado de um código oficial da mesa, a interpretação mudará em seu feed de cartões de anime instantaneamente, enquanto os outros usuários continuarão visualizando o significado cadastrado pela moderação. Prático para criar e gerenciar taxonomias personalizadas!
+                <strong className="text-zinc-300">Como funciona o Sistema Colaborativo?</strong> Qualquer usuário do Bushidô pode criar ativamente novos códigos ou editar significados gerais na hora ("no vo"). As mudanças aparecem instantaneamente para toda a comunidade mapear os animes perfeitamente!
               </div>
             </div>
 
-            {/* SUGGEST A NEW CODE DISCIPLINE FORM */}
-            <div className="bg-[#0a0712] border border-amber-500/15 p-4 rounded-xl space-y-3.5" id="suggest-new-code-block">
-              <div className="flex items-center gap-1.5 border-b border-zinc-900 pb-2">
-                <Sparkles className="h-3.5 w-3.5 text-amber-400 animate-pulse" />
-                <h3 className="text-xs font-black text-zinc-200 uppercase tracking-tight">Sugerir Novo Código para a Comunidade</h3>
+            {/* DIRECT ADD A NEW AZ COMMUNITY CODE FORM */}
+            <div className="bg-[#0b0816] border border-purple-550/20 p-5 rounded-2xl space-y-4 shadow-xl" id="suggest-new-code-block">
+              <div className="flex items-center gap-1.5 border-b border-zinc-900 pb-2.5">
+                <div className="w-6 h-6 rounded bg-purple-900/40 text-purple-400 flex items-center justify-center border border-purple-500/20">
+                  <Tag className="h-3.5 w-3.5 animate-pulse" />
+                </div>
+                <h3 className="text-xs font-black text-white uppercase tracking-wider">🥋 Criar Ativamente Novo Código de Característica A-Z</h3>
               </div>
 
               <p className="text-[11px] text-zinc-400 leading-relaxed">
-                Tem um acrônimo em mente (ex: <strong className="text-amber-400">"FL"</strong> para <em>Fine Landy</em> / Enquadramento Lindo)? Escolha o seu método preferido e envie para <strong className="text-purple-400">animebushidohonor@gmail.com</strong>!
+                Adicione diretamente uma nova tag consensual à classificação oficial (ex: <strong className="text-purple-400">"FL"</strong> – <em>Fine Landy / Enquadramento Lindo</em>). Ao registrar, o código fica disponível imediatamente para todos classificarem animes!
               </p>
 
-              {/* Segmented Selector for Submission Method */}
-              <div className="grid grid-cols-4 gap-1 bg-[#04020a] p-1 rounded-lg border border-zinc-900">
-                {(["email", "tally", "google", "typeform"] as const).map((method) => (
-                  <button
-                    key={method}
-                    type="button"
-                    onClick={() => setSuggestMethod(method)}
-                    className={`py-1 text-[9px] font-mono font-bold rounded uppercase cursor-pointer transition-all ${
-                      suggestMethod === method
-                        ? "bg-amber-500 text-black font-extrabold"
-                        : "text-zinc-500 hover:text-zinc-200 hover:bg-zinc-950/40"
-                    }`}
-                  >
-                    {method === "email" ? "E-mail" : method === "tally" ? "Tally" : method === "google" ? "Google" : "Typeform"}
-                  </button>
-                ))}
-              </div>
-
-              <form onSubmit={handleSendSuggestion} className="space-y-3 pt-0.5">
-                <div className="grid grid-cols-3 gap-2">
+              <form onSubmit={handleDirectAddCodeSubmit} className="space-y-3.5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div className="col-span-1">
-                    <label className="text-[8.5px] font-mono text-zinc-500 uppercase block mb-1">Código sugerido:</label>
+                    <label className="text-[9px] font-mono text-zinc-550 uppercase tracking-wider block mb-1">Sigla do Código (2-4 Letras):</label>
                     <input
                       type="text"
                       maxLength={4}
                       placeholder="Ex: FL"
                       value={suggestedCode}
                       onChange={(e) => setSuggestedCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ""))}
-                      className="w-full bg-[#030303] text-xs text-zinc-200 p-2 rounded border border-zinc-850 focus:border-amber-500 outline-none font-mono"
+                      className="w-full bg-black text-xs text-zinc-100 p-3 rounded-lg border border-zinc-850 focus:border-purple-500 outline-none font-mono uppercase tracking-widest"
                       required
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-[8.5px] font-mono text-zinc-500 uppercase block mb-1">Acrônimo / Significado:</label>
+                    <label className="text-[9px] font-mono text-zinc-550 uppercase tracking-wider block mb-1">Acrônimo / Significado da Tag:</label>
                     <input
                       type="text"
                       placeholder="Ex: Enquadramento Lindo"
                       value={suggestedMeaning}
                       onChange={(e) => setSuggestedMeaning(e.target.value)}
-                      className="w-full bg-[#030303] text-xs text-zinc-200 p-2 rounded border border-zinc-850 focus:border-amber-500 outline-none"
+                      className="w-full bg-black text-xs text-zinc-100 p-3 rounded-lg border border-zinc-850 focus:border-purple-500 outline-none"
                       required
                     />
                   </div>
                 </div>
 
-                <div>
-                  <label className="text-[8.5px] font-mono text-zinc-500 uppercase block mb-1">Breve Descrição / Utilidade:</label>
-                  <textarea
-                    placeholder="Como esse código ajuda a catalogar de forma consensual?"
-                    value={suggestedDescription}
-                    onChange={(e) => setSuggestedDescription(e.target.value)}
-                    rows={2}
-                    className="w-full bg-[#030303] text-xs text-zinc-200 p-2 rounded border border-zinc-850 focus:border-amber-500 outline-none resize-none"
-                    required
-                  />
-                </div>
+                {codeErrorMsg && (
+                  <div className="text-[10px] font-mono text-rose-400 bg-rose-950/20 border border-rose-900/30 p-2.5 rounded animate-fade-in">
+                    ⚠️ {codeErrorMsg}
+                  </div>
+                )}
 
                 {suggestionSuccess && (
-                  <div className="text-[10px] font-mono text-green-400 bg-green-950/20 border border-green-900/30 p-2 rounded text-center animate-fade-in">
-                    ✓ Sugestão encaminhada com sucesso! Obrigado por colaborar!
+                  <div className="text-[10px] font-mono text-emerald-400 bg-emerald-950/20 border border-emerald-900/30 p-2.5 rounded text-center animate-fade-in">
+                    ✓ Código "{suggestedCode}" adicionado à enciclopédia com êxito! Já está liberado para classificar qualquer anime!
                   </div>
                 )}
 
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-lg cursor-pointer transition-all shadow-md shadow-amber-500/10 active:scale-95"
+                  disabled={isSubmittingCode}
+                  className="w-full bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-extrabold text-[10.5px] uppercase tracking-wider py-3 rounded-xl cursor-pointer transition-all shadow-md active:scale-[0.98] flex items-center justify-center gap-1.5"
                 >
-                  {suggestMethod === "email" ? "Enviar sugestão via E-mail" : `Enviar sugestão via ${suggestMethod === "tally" ? "Tally Forms" : suggestMethod === "google" ? "Google Forms" : "Typeform"}`}
+                  {isSubmittingCode ? "Salvando na Matriz..." : "🥋 Publicar Novo Código de Característica"}
                 </button>
               </form>
             </div>

@@ -15,7 +15,8 @@ import {
   Lock,
   ArrowRight,
   Hash,
-  BookOpen
+  BookOpen,
+  MessageSquare
 } from "lucide-react";
 import { PushNotification } from "../types";
 import VipButton from "./VipButton";
@@ -266,6 +267,18 @@ export default function Navbar({
           >
             <Heart className="h-4 w-4 text-rose-500 fill-rose-500/10" />
             Minha Área
+          </button>
+
+          <button
+            onClick={() => setActiveTab("chat")}
+            className={`font-display text-xs font-semibold uppercase tracking-wider transition-all duration-200 flex items-center gap-1.5 border-b-2 py-2 cursor-pointer ${
+              activeTab === "chat"
+                ? "border-purple-500 text-white"
+                : "border-transparent text-zinc-400 hover:text-white"
+            }`}
+          >
+            <MessageSquare className="h-4 w-4 text-purple-400" />
+            Chat da Tribo 💬
           </button>
 
           <button
@@ -581,6 +594,12 @@ export default function Navbar({
           className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "watchlist" ? "text-purple-400 font-semibold" : "text-zinc-500"}`}
         >
           Favoritos
+        </button>
+        <button
+          onClick={() => setActiveTab("chat")}
+          className={`px-2 py-1 text-xs font-medium cursor-pointer ${activeTab === "chat" ? "text-purple-400 font-semibold" : "text-zinc-500"}`}
+        >
+          Chat 💬
         </button>
         <button
           onClick={() => setActiveTab("manga-piece")}

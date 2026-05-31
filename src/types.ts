@@ -75,3 +75,21 @@ export interface MangaRankItem {
   count: number;
 }
 
+export interface CommunityTip {
+  id: string;
+  animeId: string;
+  animeTitle: string;
+  content: string;
+  submittedBy: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+  role: "admin" | "vip" | "user";
+  uid: string;
+}
+

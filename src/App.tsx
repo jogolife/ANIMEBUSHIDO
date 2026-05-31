@@ -15,7 +15,9 @@ import {
   ListOrdered,
   HelpCircle,
   Hash,
-  Key
+  Key,
+  Plus,
+  X
 } from "lucide-react";
 import { Anime, Comment, NewsItem, PushNotification, Code } from "./types";
 import Navbar from "./components/Navbar";
@@ -27,6 +29,7 @@ import AnimeDetailModal from "./components/AnimeDetailModal";
 import AdminPanel from "./components/AdminPanel";
 import AlphabeticalListCodes from "./components/AlphabeticalListCodes";
 import MangaPiece from "./components/MangaPiece";
+import CommunityChat from "./components/CommunityChat";
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>("catalog");
@@ -83,6 +86,16 @@ export default function App() {
 
   // Filter tag codes checked by the user
   const [checkedCodes, setCheckedCodes] = useState<string[]>([]);
+
+  // States for user community anime creation
+  const [showAddAnimeModal, setShowAddAnimeModal] = useState(false);
+  const [addAnimeTitle, setAddAnimeTitle] = useState("");
+  const [addAnimeImage, setAddAnimeImage] = useState("");
+  const [addAnimeDesc, setAddAnimeDesc] = useState("");
+  const [addAnimeSelectedGenres, setAddAnimeSelectedGenres] = useState<string[]>([]);
+  const [addAnimeCoverPreset, setAddAnimeCoverPreset] = useState("");
+  const [addAnimeSubmitting, setAddAnimeSubmitting] = useState(false);
+  const [addAnimeError, setAddAnimeError] = useState("");
 
   // Push Notification Slide Alert
   const [toastNotification, setToastNotification] = useState<string | null>(null);
@@ -246,6 +259,59 @@ export default function App() {
       }
     } catch (err) {
       console.error("Erro ao computar voto:", err);
+    }
+  };
+
+  // Submit Community Anime Creation
+  const handleCreateAnime = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addAnimeTitle.trim()) {
+      setAddAnimeError("O título do anime é obrigatório.");
+      return;
+    }
+
+    setAddAnimeSubmitting(true);
+    setAddAnimeError("");
+
+    // Choose final image: either custom URL or selected preset
+    const finalImage = addAnimeImage.trim() || addAnimeCoverPreset || "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80";
+
+    try {
+      const response = await fetch("/api/user/animes", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          title: addAnimeTitle.trim(),
+          image: finalImage,
+          description: addAnimeDesc.trim(),
+          genres: addAnimeSelectedGenres.length > 0 ? addAnimeSelectedGenres : ["Ação"]
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Falha ao cadastrar anime.");
+      }
+
+      // Close modal and reset fields
+      setShowAddAnimeModal(false);
+      setAddAnimeTitle("");
+      setAddAnimeImage("");
+      setAddAnimeDesc("");
+      setAddAnimeSelectedGenres([]);
+      setAddAnimeCoverPreset("");
+
+      // Refresh list instantly
+      await fetchAllData();
+
+      // Trigger user feedback slide notification
+      handleTriggerNotification("Novo Anime Cadastrado! 🥋", `O anime "${data.title || addAnimeTitle.trim()}" foi adicionado com sucesso e já está disponível no catálogo principal.`);
+    } catch (err: any) {
+      setAddAnimeError(err.message || "Houve um erro ao salvar o anime.");
+    } finally {
+      setAddAnimeSubmitting(false);
     }
   };
 
@@ -723,9 +789,18 @@ export default function App() {
             <div className="space-y-6">
               
               <div className="flex items-center justify-between border-b border-zinc-900 pb-3 flex-wrap gap-3">
-                <h2 className="font-display font-black text-2xl text-white uppercase tracking-tight flex items-center gap-2">
-                  🎌 Catálogo de Animes ({filteredAnimes.length})
-                </h2>
+                <div className="flex items-center gap-3.5 flex-wrap">
+                  <h2 className="font-display font-black text-2xl text-white uppercase tracking-tight flex items-center gap-2">
+                    🎌 Catálogo de Animes ({filteredAnimes.length})
+                  </h2>
+                  <button
+                    onClick={() => setShowAddAnimeModal(true)}
+                    className="px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-555 hover:to-indigo-555 text-white text-[10px] font-mono font-black uppercase tracking-wider rounded-lg flex items-center gap-1.5 transition-all shadow-lg shadow-purple-500/10 cursor-pointer active:scale-95 border border-purple-500/10"
+                    id="btn-add-community-anime"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> 🥋 Cadastrar Anime
+                  </button>
+                </div>
                 
                 {/* INTERACTIVE TOGGLE: BENTO GRID VS ALPHABETICAL INDEX */}
                 <div className="flex bg-zinc-950 p-1 rounded-lg border border-zinc-850 text-xs">
@@ -814,6 +889,7 @@ export default function App() {
             onRateAnime={handleRateAnime}
             onSelectAnime={setSelectedAnime}
             currentUser={currentUser}
+            onRefreshData={fetchAllData}
           />
         )}
 
@@ -832,6 +908,7 @@ export default function App() {
           <NewsSection 
             news={news} 
             animes={animes}
+            currentUser={currentUser}
           />
         )}
 
@@ -844,6 +921,13 @@ export default function App() {
             onToggleFavorite={handleToggleFavorite} 
             onToggleWatchlist={handleToggleWatchlist} 
             onSelectAnime={setSelectedAnime}
+            currentUser={currentUser}
+          />
+        )}
+
+        {/* COMMUNITY CHAT TAB */}
+        {activeTab === "chat" && (
+          <CommunityChat 
             currentUser={currentUser}
           />
         )}
@@ -886,6 +970,171 @@ export default function App() {
           onRateAnime={handleRateAnime}
           availableCodes={availableCodes}
         />
+      )}
+
+      {/* 🥋 EXQUISITE COMMUNITY ANIME CREATION MODAL OVERLAY */}
+      {showAddAnimeModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 md:p-6 overflow-y-auto animate-fade-in" id="add-anime-modal-overlay">
+          <div className="bg-[#0b0818] border border-purple-500/20 max-w-lg w-full rounded-2xl overflow-hidden shadow-2xl shadow-purple-950/20 flex flex-col my-auto max-h-[90vh]">
+            {/* Header banner */}
+            <div className="bg-gradient-to-r from-purple-950 via-indigo-950 to-black p-5 border-b border-zinc-900 flex justify-between items-center relative">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-2xl" />
+              <div className="z-10">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-purple-400 uppercase block mb-0.5">Espaço da Comunidade</span>
+                <h3 className="font-display font-black text-lg text-white uppercase tracking-tight flex items-center gap-2">
+                  🥋 Adicionar Novo Anime no Catálogo
+                </h3>
+              </div>
+              <button
+                onClick={() => {
+                  setShowAddAnimeModal(false);
+                  setAddAnimeError("");
+                }}
+                className="text-zinc-400 hover:text-white p-2 rounded-lg bg-zinc-900/50 border border-zinc-800 hover:border-zinc-700 transition cursor-pointer z-10"
+                title="Fechar"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form body container */}
+            <form onSubmit={handleCreateAnime} className="p-5 overflow-y-auto space-y-4 flex-1 scrollbar-thin">
+              {addAnimeError && (
+                <div className="text-xs font-mono text-rose-450 bg-rose-950/20 border border-rose-900/30 p-3 rounded-lg animate-fade-in">
+                  ⚠️ {addAnimeError}
+                </div>
+              )}
+
+              {/* Title Input */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-zinc-450 uppercase font-black tracking-wider block">
+                  Título Oficial / Nome (Obrigatório):
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: Chainsaw Man Season 2"
+                  value={addAnimeTitle}
+                  onChange={(e) => setAddAnimeTitle(e.target.value)}
+                  className="w-full bg-black border border-zinc-850 focus:border-purple-500 text-xs text-white p-3 rounded-xl outline-none transition-colors font-semibold"
+                  required
+                />
+              </div>
+
+              {/* Description Input */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono text-zinc-450 uppercase font-black tracking-wider block">
+                  Descrição / Sinopse (Opcional):
+                </label>
+                <textarea
+                  placeholder="Do que se trata o anime? Conte para a comunidade de honra..."
+                  value={addAnimeDesc}
+                  onChange={(e) => setAddAnimeDesc(e.target.value)}
+                  rows={2}
+                  className="w-full bg-black border border-zinc-850 focus:border-purple-500 text-xs text-white p-3 rounded-xl outline-none resize-none transition-colors"
+                />
+              </div>
+
+              {/* Genres Multi-Select Grid */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-mono text-zinc-450 uppercase font-black tracking-wider block">
+                  Gêneros do Anime (Selecione):
+                </label>
+                <div className="grid grid-cols-3 gap-1.5 p-2 bg-black/60 rounded-xl border border-zinc-900">
+                  {["Ação", "Aventura", "Fantasia", "Drama", "Romance", "Suspense", "Comédia", "Ficção Científica", "Slice of Life"].map((genre) => {
+                    const isSelected = addAnimeSelectedGenres.includes(genre);
+                    return (
+                      <button
+                        key={genre}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setAddAnimeSelectedGenres(prev => prev.filter(g => g !== genre));
+                          } else {
+                            setAddAnimeSelectedGenres(prev => [...prev, genre]);
+                          }
+                        }}
+                        className={`py-1.5 px-2 text-[10px] font-mono rounded-lg border text-center transition-all cursor-pointer ${
+                          isSelected 
+                            ? "bg-purple-900/30 text-purple-300 border-purple-550/40 font-bold"
+                            : "bg-transparent text-zinc-500 border-zinc-900 hover:text-zinc-300 hover:border-zinc-855"
+                        }`}
+                      >
+                        {genre}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cover Artwork choice */}
+              <div className="space-y-3 pt-1">
+                <div className="flex justify-between items-center">
+                  <label className="text-[10px] font-mono text-zinc-450 uppercase font-black tracking-wider block">
+                    Imagem de Capa (Caminho / URL ou Atalho Artístico):
+                  </label>
+                </div>
+
+                {/* Custom URL Input */}
+                <input
+                  type="url"
+                  placeholder="Cole um link de imagem absoluto (Ex: https://...)"
+                  value={addAnimeImage}
+                  onChange={(e) => {
+                    setAddAnimeImage(e.target.value);
+                    if (e.target.value.trim() !== "") setAddAnimeCoverPreset(""); // reset preset choice
+                  }}
+                  className="w-full bg-black border border-zinc-850 focus:border-purple-500 text-xs text-white p-3 rounded-xl outline-none transition-colors font-mono"
+                />
+
+                {/* Cover presets visual selector */}
+                <div className="space-y-2">
+                  <span className="text-[9px] font-mono text-zinc-600 uppercase block">Atalhos de Capas Artísticas Coesas:</span>
+                  <div className="grid grid-cols-5 gap-2" id="preset-cover-grid">
+                    {[
+                      { name: "Kyoto Sunset", url: "https://images.unsplash.com/photo-1493976040375-85c8e12f0c0e?w=800&auto=format&fit=crop&q=80" },
+                      { name: "Cyber Neon", url: "https://images.unsplash.com/photo-1540959733332-eab4deceeaf7?w=800&auto=format&fit=crop&q=80" },
+                      { name: "Ronin Samurai", url: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=800&auto=format&fit=crop&q=80" },
+                      { name: "Space Outpost", url: "https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?w=800&auto=format&fit=crop&q=80" },
+                      { name: "Fuji Peak", url: "https://images.unsplash.com/photo-1503899036084-c55cdd92da26?w=800&auto=format&fit=crop&q=80" }
+                    ].map((pre) => {
+                      const isCurrent = addAnimeCoverPreset === pre.url || (addAnimeImage.trim() === "" && addAnimeCoverPreset === "" && pre.url.includes("1493976040374"));
+                      return (
+                        <button
+                          key={pre.name}
+                          type="button"
+                          onClick={() => {
+                            setAddAnimeCoverPreset(pre.url);
+                            setAddAnimeImage(""); // reset custom input URL
+                          }}
+                          className={`relative aspect-[3/4.2] rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                            isCurrent ? "border-purple-500 ring-2 ring-purple-500/20 scale-105" : "border-zinc-850 hover:border-zinc-700"
+                          }`}
+                          title={pre.name}
+                        >
+                          <img src={pre.url} className="w-full h-full object-cover" alt={pre.name} referrerPolicy="no-referrer" />
+                          <div className="absolute inset-x-0 bottom-0 bg-black/85 py-0.5 text-[8px] font-mono text-zinc-300 truncate text-center px-1">
+                            {pre.name}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Submit panel */}
+              <div className="pt-3">
+                <button
+                  type="submit"
+                  disabled={addAnimeSubmitting}
+                  className="w-full bg-gradient-to-r from-purple-600 to-indigo-650 hover:from-purple-555 hover:to-indigo-555 disabled:opacity-50 text-white font-extrabold text-xs uppercase tracking-wider py-3.5 rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 active:scale-98 shadow-md"
+                >
+                  {addAnimeSubmitting ? "Cadastrando na Mesa de Honra..." : "🥋 Publicar Anime no Catálogo do Bushidô"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       {/* FOOTER POLISHED */}

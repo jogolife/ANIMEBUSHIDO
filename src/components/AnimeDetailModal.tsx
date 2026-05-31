@@ -150,13 +150,13 @@ export default function AnimeDetailModal({
       if (!response.ok) {
         setCodeErrorMsg(body.error || "Erro ao postar código");
       } else {
-        setCodeSuccessMsg(`Código '${body.code}' enviado para análise da moderação!`);
+        setCodeSuccessMsg(`Código '${body.code}' cadastrado com sucesso!`);
         setNewCodeTxt("");
         setNewCodeMeaning("");
         setTimeout(() => setShowCodeForm(false), 2000);
       }
     } catch {
-      setCodeErrorMsg("Falha crítica no envio da sugestão.");
+      setCodeErrorMsg("Falha crítica no envio do novo código.");
     }
   };
 
@@ -457,14 +457,14 @@ export default function AnimeDetailModal({
                           }}
                           className="text-[9px] text-purple-400 hover:underline flex items-center gap-0.5 cursor-pointer"
                         >
-                          <Plus className="h-3 w-3" /> Sugerir Novo
+                          <Plus className="h-3 w-3" /> Cadastrar Novo
                         </button>
                       </div>
 
                       {showCodeForm ? (
-                        /* Suggest Code Miniature Form Drawer */
+                        /* Create Code Miniature Form Drawer */
                         <div className="bg-zinc-950 p-2.5 rounded-lg border border-purple-900/30 space-y-2 mt-1 animate-fade-in text-[11px]">
-                          <div className="font-bold text-[10px] uppercase font-mono text-purple-450">Sugerir Código à Moderação</div>
+                          <div className="font-bold text-[10px] uppercase font-mono text-purple-450">Cadastrar Novo Código de Característica</div>
                           
                           <div>
                             <input 
@@ -502,7 +502,7 @@ export default function AnimeDetailModal({
                               onClick={handleSuggestCodeSubmit}
                               className="px-2 py-1 bg-purple-600 hover:bg-purple-500 font-bold text-[9px] rounded text-white cursor-pointer"
                             >
-                              Sugerir
+                              Cadastrar
                             </button>
                           </div>
                         </div>

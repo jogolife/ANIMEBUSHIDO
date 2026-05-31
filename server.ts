@@ -354,6 +354,24 @@ const INITIAL_MANGA_SUBMISSIONS: MangaSubmission[] = [
   { id: "m22", mangaName: "Beck", submittedBy: "kakashi@konoha.com", createdAt: new Date(Date.now() - 23 * 3600000).toISOString() }
 ];
 
+export interface CommunityTip {
+  id: string;
+  animeId: string;
+  animeTitle: string;
+  content: string;
+  submittedBy: string;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  userName: string;
+  content: string;
+  createdAt: string;
+  role: "admin" | "vip" | "user";
+  uid: string;
+}
+
 interface DatabaseSchema {
   animes: Anime[];
   comments: Comment[];
@@ -367,6 +385,9 @@ interface DatabaseSchema {
   userCodes?: { [userId: string]: { [code: string]: string } }; // Personal code meaning overrides: userId -> code -> custom meaning
   userRoles?: { [userId: string]: "admin" | "vip" | "user" };
   mangaSubmissions?: MangaSubmission[];
+  communityTips?: CommunityTip[];
+  chatMessages?: ChatMessage[];
+  bannedUsers?: string[];
 }
 
 // Database Helper
@@ -392,6 +413,57 @@ const loadDb = (): DatabaseSchema => {
       if (!parsed.mangaSubmissions) {
         parsed.mangaSubmissions = INITIAL_MANGA_SUBMISSIONS;
       }
+      if (!parsed.communityTips) {
+        parsed.communityTips = [
+          {
+            id: "tip1",
+            animeId: "a1",
+            animeTitle: "Sousou no Frieren",
+            content: "Para quem quer assistir Sousou no Frieren com excelente qualidade e dublagem impecável, recomendo assistir direto pela Crunchyroll BR. O mangá também está sendo lançado oficialmente em volumes físicos no Brasil!",
+            submittedBy: "Mestre Dos Animes",
+            createdAt: new Date(Date.now() - 36 * 3600000).toISOString()
+          },
+          {
+            id: "tip2",
+            animeId: "a3",
+            animeTitle: "Kimetsu no Yaiba: Hashira Geiko-hen",
+            content: "Atenção galera! O novo arco de Demon Slayer está disponível completo na Netflix e Crunchyroll. Uma dica para quem quer poupar tempo: os episódios 1 e 8 têm duração extendida e reúnem as melhores qualidades do longa de cinema!",
+            submittedBy: "Zenitsu_Puto",
+            createdAt: new Date(Date.now() - 12 * 3600000).toISOString()
+          }
+        ];
+      }
+      if (!parsed.chatMessages) {
+        parsed.chatMessages = [
+          {
+            id: "chat1",
+            userName: "Sasuke Vingador",
+            content: "Fala clã! Curtiram o novo ranking de animes da temporada?",
+            createdAt: new Date(Date.now() - 5 * 60000).toISOString(),
+            role: "vip",
+            uid: "sasuser_mock"
+          },
+          {
+            id: "chat2",
+            userName: "Sakura_Chan",
+            content: "Achei super justo o topo! Frieren é Absolute Cinema de verdade!",
+            createdAt: new Date(Date.now() - 4 * 60000).toISOString(),
+            role: "user",
+            uid: "sakurachan_mock"
+          },
+          {
+            id: "chat3",
+            userName: "Admin Bushidô 👑",
+            content: "Bem-vindos ao chat oficial de debate! Respeitem as regras e divirtam-se indicando seus tesouros ocultos! 🎌",
+            createdAt: new Date(Date.now() - 2 * 60500).toISOString(),
+            role: "admin",
+            uid: "admin_superuser"
+          }
+        ];
+      }
+      if (!parsed.bannedUsers) {
+        parsed.bannedUsers = [];
+      }
       saveDb(parsed); // Save migrated structure
       return parsed;
     }
@@ -410,7 +482,36 @@ const loadDb = (): DatabaseSchema => {
     codes: DEFAULT_CODES,
     ratings: DEFAULT_RATINGS,
     userCodes: {},
-    mangaSubmissions: INITIAL_MANGA_SUBMISSIONS
+    mangaSubmissions: INITIAL_MANGA_SUBMISSIONS,
+    communityTips: [
+      {
+        id: "tip1",
+        animeId: "a1",
+        animeTitle: "Sousou no Frieren",
+        content: "Para quem quer assistir Sousou no Frieren com excelente qualidade e dublagem impecável, recomendo assistir direto pela Crunchyroll BR. O mangá também está sendo lançado oficialmente em volumes físicos no Brasil!",
+        submittedBy: "Mestre Dos Animes",
+        createdAt: new Date(Date.now() - 36 * 3600000).toISOString()
+      }
+    ],
+    chatMessages: [
+      {
+        id: "chat1",
+        userName: "Sasuke Vingador",
+        content: "Fala clã! Curtiram o novo ranking de animes da temporada?",
+        createdAt: new Date(Date.now() - 5 * 60000).toISOString(),
+        role: "vip",
+        uid: "sasuser_mock"
+      },
+      {
+        id: "chat3",
+        userName: "Admin Bushidô 👑",
+        content: "Bem-vindos ao chat oficial de debate! Respeitem as regras e divirtam-se indicando seus tesouros ocultos! 🎌",
+        createdAt: new Date(Date.now() - 2 * 60500).toISOString(),
+        role: "admin",
+        uid: "admin_superuser"
+      }
+    ],
+    bannedUsers: []
   };
   saveDb(defaultDb);
   return defaultDb;
@@ -626,6 +727,43 @@ app.post("/api/admin/animes", (req, res) => {
   res.status(210).json(computeAnimeDynamicData(newAnime, dbData));
 });
 
+// COMMUNITY USER: Create/Add Anime in catalog directly
+app.post("/api/user/animes", (req, res) => {
+  const { title, image, description, genres } = req.body;
+
+  if (!title || typeof title !== "string" || title.trim() === "") {
+    return res.status(400).json({ error: "O título do anime é obrigatório para cadastrar no catálogo!" });
+  }
+
+  const dbData = loadDb();
+  const upTitle = title.trim().toLowerCase();
+  const duplicate = dbData.animes.some(a => a.title.toLowerCase() === upTitle);
+  if (duplicate) {
+    return res.status(400).json({ error: `O anime "${title.trim()}" já está cadastrado no catálogo do Bushidô!` });
+  }
+
+  const nextId = String(Date.now());
+  const newAnime: Anime = {
+    id: nextId,
+    title: title.trim(),
+    image: image || "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80",
+    description: description || "Este anime foi cadastrado por um honrado membro da comunidade Otaku Bushidô.",
+    season: "Adicionado via Comunidade 🥋",
+    votes: 1, // Start with 1 default vote of confidence
+    trailerUrl: "https://www.youtube.com/embed/ApSgT_9f_N0",
+    episodesCount: 12,
+    rating: 8.5,
+    genres: genres && genres.length > 0 ? genres : ["Ação"],
+    releaseCalendar: "Lançamento Concluído",
+    seasonsCatalog: [{ seasonNumber: 1, title: "Temporada de Estreia", episodes: 12, year: 2026 }]
+  };
+
+  // Add at the beginning of the list so they can see their newly added anime instantly!
+  dbData.animes.unshift(newAnime);
+  saveDb(dbData);
+  res.status(210).json(computeAnimeDynamicData(newAnime, dbData));
+});
+
 // ADMIN: Update Anime
 app.put("/api/admin/animes/:id", (req, res) => {
   const { id } = req.params;
@@ -811,7 +949,7 @@ app.post("/api/codes", (req, res) => {
     id: `co_${Date.now()}`,
     code: upCode,
     meaning: meaning.trim(),
-    approved: false // requires admin consent
+    approved: true // Approved instantly so anyone can use it!
   };
 
   dbData.codes.push(newCode);
@@ -850,6 +988,28 @@ app.post("/api/admin/codes", (req, res) => {
   dbData.codes.push(newCode);
   saveDb(dbData);
   res.status(210).json(newCode);
+});
+
+// Community edits code meaning globally on the fly
+app.put("/api/codes/:id", (req, res) => {
+  const { id } = req.params;
+  const { meaning } = req.body;
+
+  if (!meaning || typeof meaning !== "string" || meaning.trim() === "") {
+    return res.status(400).json({ error: "O significado da característica não pode ser vazio!" });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.codes) dbData.codes = [];
+
+  const index = dbData.codes.findIndex(c => c.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: "Código não encontrado no sistema" });
+  }
+
+  dbData.codes[index].meaning = meaning.trim();
+  saveDb(dbData);
+  res.json(dbData.codes[index]);
 });
 
 // Admin edits code
@@ -1354,6 +1514,237 @@ app.post("/api/manga-piece", (req, res) => {
     top3: sortedRanks.slice(0, 3),
     submissions: dbData.mangaSubmissions
   });
+});
+
+// ADMIN: Modify Manga Piece Suggestion
+app.put("/api/admin/manga-piece/:id", (req, res) => {
+  const { id } = req.params;
+  const { mangaName, submittedBy } = req.body;
+
+  if (!mangaName || typeof mangaName !== "string" || mangaName.trim() === "") {
+    return res.status(400).json({ error: "O nome do mangá é obrigatório para modificação." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.mangaSubmissions) dbData.mangaSubmissions = [];
+
+  const index = dbData.mangaSubmissions.findIndex(sub => sub.id === id);
+  if (index === -1) {
+    return res.status(404).json({ error: "Sugestão de mangá não localizada." });
+  }
+
+  const formattedName = mangaName
+    .trim()
+    .split(/\s+/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(" ");
+
+  dbData.mangaSubmissions[index].mangaName = formattedName;
+  if (submittedBy !== undefined) {
+    dbData.mangaSubmissions[index].submittedBy = typeof submittedBy === "string" && submittedBy.trim() !== "" ? submittedBy.trim() : "Otaku Anônimo";
+  }
+
+  saveDb(dbData);
+
+  // Recalculate frequency
+  const frequencyMap: { [key: string]: number } = {};
+  dbData.mangaSubmissions.forEach(sub => {
+    if (!sub.mangaName) return;
+    const normalized = sub.mangaName
+      .trim()
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+    frequencyMap[normalized] = (frequencyMap[normalized] || 0) + 1;
+  });
+
+  const sortedRanks = Object.keys(frequencyMap)
+    .map(name => ({ mangaName: name, count: frequencyMap[name] }))
+    .sort((a, b) => b.count - a.count);
+
+  res.json({
+    success: true,
+    submissions: dbData.mangaSubmissions,
+    top10: sortedRanks.slice(0, 10),
+    top3: sortedRanks.slice(0, 3)
+  });
+});
+
+// ADMIN: Delete Manga Piece Suggestion
+app.delete("/api/admin/manga-piece/:id", (req, res) => {
+  const { id } = req.params;
+
+  const dbData = loadDb();
+  if (!dbData.mangaSubmissions) dbData.mangaSubmissions = [];
+
+  const exist = dbData.mangaSubmissions.some(sub => sub.id === id);
+  if (!exist) {
+    return res.status(404).json({ error: "Sugestão de mangá não localizada para exclusão." });
+  }
+
+  dbData.mangaSubmissions = dbData.mangaSubmissions.filter(sub => sub.id !== id);
+  saveDb(dbData);
+
+  // Recalculate frequency
+  const frequencyMap: { [key: string]: number } = {};
+  dbData.mangaSubmissions.forEach(sub => {
+    if (!sub.mangaName) return;
+    const normalized = sub.mangaName
+      .trim()
+      .split(/\s+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+      .join(" ");
+    frequencyMap[normalized] = (frequencyMap[normalized] || 0) + 1;
+  });
+
+  const sortedRanks = Object.keys(frequencyMap)
+    .map(name => ({ mangaName: name, count: frequencyMap[name] }))
+    .sort((a, b) => b.count - a.count);
+
+  res.json({
+    success: true,
+    submissions: dbData.mangaSubmissions,
+    top10: sortedRanks.slice(0, 10),
+    top3: sortedRanks.slice(0, 3)
+  });
+});
+
+// --- COMMUNITY TIPS (RECOMENDAÇÕES E DICAS) API ---
+
+app.get("/api/tips", (req, res) => {
+  const dbData = loadDb();
+  if (!dbData.communityTips) dbData.communityTips = [];
+  res.json(dbData.communityTips);
+});
+
+app.post("/api/tips", (req, res) => {
+  const { animeId, animeTitle, content, submittedBy } = req.body;
+  if (!content || content.trim() === "") {
+    return res.status(400).json({ error: "O conteúdo da dica/recomendação não pode ser vazio." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.communityTips) dbData.communityTips = [];
+
+  const newTip = {
+    id: "tip_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    animeId: animeId || "geral",
+    animeTitle: animeTitle || "Geral",
+    content: content.trim(),
+    submittedBy: submittedBy || "Anônimo",
+    createdAt: new Date().toISOString()
+  };
+
+  dbData.communityTips.unshift(newTip);
+  saveDb(dbData);
+
+  res.json({ success: true, tip: newTip, tips: dbData.communityTips });
+});
+
+app.delete("/api/admin/tips/:id", (req, res) => {
+  const { id } = req.params;
+  const dbData = loadDb();
+  if (!dbData.communityTips) dbData.communityTips = [];
+
+  dbData.communityTips = dbData.communityTips.filter(t => t.id !== id);
+  saveDb(dbData);
+
+  res.json({ success: true, tips: dbData.communityTips });
+});
+
+
+// --- COMMUNITY CHAT API ---
+
+app.get("/api/chat", (req, res) => {
+  const dbData = loadDb();
+  if (!dbData.chatMessages) dbData.chatMessages = [];
+  res.json({
+    messages: dbData.chatMessages,
+    bannedUsers: dbData.bannedUsers || []
+  });
+});
+
+app.post("/api/chat", (req, res) => {
+  const { userName, content, role, uid } = req.body;
+  if (!content || content.trim() === "") {
+    return res.status(400).json({ error: "A mensagem não pode estar vazia." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.chatMessages) dbData.chatMessages = [];
+  if (!dbData.bannedUsers) dbData.bannedUsers = [];
+
+  const userUid = uid || "anon";
+
+  // Check if UID is banned
+  if (dbData.bannedUsers.includes(userUid)) {
+    return res.status(403).json({ error: "Seu usuário foi banido permanentemente pelo Administrador do Bushidô." });
+  }
+
+  const newMessage = {
+    id: "chat_" + Date.now() + "_" + Math.floor(Math.random() * 1000),
+    userName: userName || "Otaku Anônimo",
+    content: content.trim(),
+    role: role || "user",
+    uid: userUid,
+    createdAt: new Date().toISOString()
+  };
+
+  dbData.chatMessages.push(newMessage);
+
+  // keep last 100 messages
+  if (dbData.chatMessages.length > 100) {
+    dbData.chatMessages = dbData.chatMessages.slice(-100);
+  }
+
+  saveDb(dbData);
+
+  res.json({ success: true, message: newMessage, messages: dbData.chatMessages });
+});
+
+app.delete("/api/admin/chat/:id", (req, res) => {
+  const { id } = req.params;
+  const dbData = loadDb();
+  if (!dbData.chatMessages) dbData.chatMessages = [];
+
+  dbData.chatMessages = dbData.chatMessages.filter(m => m.id !== id);
+  saveDb(dbData);
+
+  res.json({ success: true, messages: dbData.chatMessages });
+});
+
+app.post("/api/admin/chat/ban", (req, res) => {
+  const { uid } = req.body;
+  if (!uid || uid === "admin_superuser") {
+    return res.status(400).json({ error: "Identificador de usuário inválido para banimento." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.bannedUsers) dbData.bannedUsers = [];
+
+  if (!dbData.bannedUsers.includes(uid)) {
+    dbData.bannedUsers.push(uid);
+    // Remove messages of the banned user for premium cleaning
+    dbData.chatMessages = (dbData.chatMessages || []).filter(m => m.uid !== uid);
+    saveDb(dbData);
+  }
+
+  res.json({ success: true, bannedUsers: dbData.bannedUsers, messages: dbData.chatMessages });
+});
+
+app.post("/api/admin/chat/unban", (req, res) => {
+  const { uid } = req.body;
+  if (!uid) {
+    return res.status(400).json({ error: "Identificador de usuário inválido." });
+  }
+
+  const dbData = loadDb();
+  if (!dbData.bannedUsers) dbData.bannedUsers = [];
+
+  dbData.bannedUsers = dbData.bannedUsers.filter(item => item !== uid);
+  saveDb(dbData);
+
+  res.json({ success: true, bannedUsers: dbData.bannedUsers });
 });
 
 async function startServer() {
